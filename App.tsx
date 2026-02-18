@@ -1610,7 +1610,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [adminUser, setAdminUser] = useState<AdminUser>({ email: '', isAuthenticated: false });
     const [galleryFilter, setGalleryFilter] = useState<string>('all');
     const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
-    const [isPlaying, setIsPlaying] = useState(true); // Default to True
+    const [isPlaying, setIsPlaying] = useState(false); // Default to false to avoid policy error
     const [selectedAlbum, setSelectedAlbum] = useState<PortfolioAlbum | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -1640,51 +1640,66 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         }
     }, []);
 
-    // Audio Logic - Updated to allow dynamic URL change
+    // Audio Logic
     useEffect(() => {
         if (!audioRef.current) {
             const audio = new Audio(content.backgroundMusicUrl); 
             audio.loop = true;
             audio.volume = 0.4;
             audioRef.current = audio;
-        } else {
-            // Update source if content changes
-            if (audioRef.current.src !== content.backgroundMusicUrl) {
-                audioRef.current.src = content.backgroundMusicUrl;
-                if (isPlaying) {
-                    audioRef.current.play().catch(e => console.error("Play error after src change:", e));
-                }
+        } else if (audioRef.current.src !== content.backgroundMusicUrl) {
+            // Update source if changed
+            audioRef.current.src = content.backgroundMusicUrl;
+            if (isPlaying) {
+                audioRef.current.play().catch(() => setIsPlaying(false));
             }
         }
-    }, [content.backgroundMusicUrl]); // Depend on URL change
+    }, [content.backgroundMusicUrl]);
 
+    // Sync State
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
 
         if (isPlaying) {
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.error("Auto-play prevented by browser policy.", e);
-                    setIsPlaying(false); // Update state to reflect reality (paused)
-                });
+            if (audio.paused) {
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => {
+                        // Silent catch for policy prevention
+                        setIsPlaying(false); 
+                    });
+                }
             }
         } else {
-            audio.pause();
+            if (!audio.paused) audio.pause();
         }
     }, [isPlaying]);
 
-    // Force Play on First Interaction
+    // Play on First Interaction (Mimic Autoplay)
     useEffect(() => {
         const handleInteraction = () => {
-            if (audioRef.current && audioRef.current.paused && isPlaying) {
-                 audioRef.current.play().catch(() => {});
+            if (audioRef.current && audioRef.current.paused) {
+                 audioRef.current.play()
+                    .then(() => setIsPlaying(true))
+                    .catch(() => {}); 
             }
+            // Cleanup
+            window.removeEventListener('click', handleInteraction);
+            window.removeEventListener('touchstart', handleInteraction);
+            window.removeEventListener('keydown', handleInteraction);
         };
-        window.addEventListener('click', handleInteraction, { once: true });
-        return () => window.removeEventListener('click', handleInteraction);
-    }, [isPlaying]);
+
+        window.addEventListener('click', handleInteraction);
+        window.addEventListener('touchstart', handleInteraction);
+        window.addEventListener('keydown', handleInteraction);
+
+        return () => {
+            window.removeEventListener('click', handleInteraction);
+            window.removeEventListener('touchstart', handleInteraction);
+            window.removeEventListener('keydown', handleInteraction);
+        };
+    }, []);
 
     const toggleAudio = () => setIsPlaying(prev => !prev);
 

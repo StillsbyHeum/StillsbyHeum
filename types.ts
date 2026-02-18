@@ -1,0 +1,87 @@
+
+export type Language = 'ko' | 'en';
+
+export interface TimeSlot {
+  id: string;
+  time: string; // "10:00"
+  isBooked: boolean;
+  isBlocked: boolean; // Admin blocked
+  count?: number; // Number of people booked
+}
+
+export interface DaySchedule {
+  date: string; // "2023-10-27"
+  slots: TimeSlot[];
+}
+
+export interface Review {
+  id: string;
+  email: string;
+  password?: string; // For user deletion
+  author: string;
+  content: string;
+  date: string;
+  rating: number;
+  photos: string[]; // Changed from optional single string to array
+}
+
+export interface PortfolioAlbum {
+  id: string;
+  title: { ko: string; en: string };
+  cover: string;
+  images: string[];
+}
+
+export interface FAQItem {
+  id: string;
+  q: { ko: string; en: string };
+  a: { ko: string; en: string };
+}
+
+export interface MeetingPoint {
+  id: string;
+  title: { ko: string; en: string };
+  description: { ko: string; en: string };
+  address: string;
+  googleMapUrl: string;
+}
+
+export interface ContentData {
+  heroTitle: { ko: string; en: string };
+  heroSubtitle: { ko: string; en: string };
+  worksTitle: { ko: string; en: string };
+  worksSubtitle: { ko: string; en: string };
+  pricingTitle: { ko: string; en: string };
+  pricingSubtitle: { ko: string; en: string };
+  noticeTitle: { ko: string; en: string };
+  noticeSubtitle: { ko: string; en: string };
+  instagramUrl: string;
+  kakaoUrl: string;
+  collageImages: string[]; // Array of images for the home signature section
+  fontTheme: 'modern' | 'serif'; // Font choice
+  portfolio: PortfolioAlbum[]; // List of albums
+  faqs: FAQItem[]; // List of FAQs
+  backgroundMusicUrl: string; // Added background music URL
+  meetingPoints: MeetingPoint[]; // Added meeting points data
+}
+
+export interface PackageItem {
+  id: string;
+  title: { ko: string; en: string };
+  price: string;
+  features: { ko: string[]; en: string[] };
+  color: string;
+  image: string; // URL for the package card background/preview
+}
+
+export interface NoticeItem {
+  id: string;
+  icon: any; // Lucide icon name or component
+  title: { ko: string; en: string };
+  description: { ko: string; en: string };
+}
+
+export type AdminUser = {
+  email: string;
+  isAuthenticated: boolean;
+};

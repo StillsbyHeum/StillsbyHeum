@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stills by Heum</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@200;300;400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'IBM Plex Sans KR', sans-serif;
+        background-color: #e6e6e6; /* Light Grey */
+        min-height: 100vh;
+        position: relative;
+        overscroll-behavior-y: none; /* Helps with the 'bounce' feel on compatible browsers */
+      }
+      .font-serif-kr {
+        font-family: 'Noto Serif KR', serif;
+      }
+      .font-outfit {
+        font-family: 'Outfit', sans-serif;
+      }
+      
+      /* --- Real Film / E-book Grain Texture --- */
+      @keyframes grain-jitter {
+        0% { transform: translate(0, 0); }
+        10% { transform: translate(-5%, -5%); }
+        20% { transform: translate(-10%, 5%); }
+        30% { transform: translate(5%, -10%); }
+        40% { transform: translate(-5%, 15%); }
+        50% { transform: translate(-10%, 5%); }
+        60% { transform: translate(15%, 0); }
+        70% { transform: translate(0, 10%); }
+        80% { transform: translate(3%, 15%); }
+        90% { transform: translate(-10%, 10%); }
+        100% { transform: translate(0, 0); }
+      }
+
+      .bg-grain::before {
+        content: "";
+        position: fixed;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        pointer-events: none;
+        z-index: 9998;
+        /* High frequency noise for "film" look */
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E");
+        background-size: 200px 200px;
+        opacity: 0.12;
+        mix-blend-mode: overlay;
+        /* Stepped animation for 12fps film feel */
+        animation: grain-jitter 1s steps(8) infinite;
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,0.2);
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(0,0,0,0.4);
+      }
+      
+      /* Glassmorphism Utilities */
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+      }
+      
+      /* Animations */
+      @keyframes popIn {
+        0% { transform: scale(0.95); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .animate-pop-in {
+        animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.6s ease-out forwards;
+      }
+
+      @keyframes slideUp {
+        from { transform: translateY(100%); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      .animate-slide-up {
+        animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      @keyframes slideInRight {
+        from { transform: translateX(20%); }
+        to { transform: translateX(0); }
+      }
+      .animate-slide-in-right {
+        animation: slideInRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+
+      @keyframes slideInLeft {
+        from { transform: translateX(-20%); }
+        to { transform: translateX(0); }
+      }
+      .animate-slide-in-left {
+        animation: slideInLeft 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+
+      /* Infinite Marquee Animation */
+      @keyframes marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      .animate-marquee {
+        animation: marquee 30s linear infinite;
+      }
+      
+      /* Slower marquee for reviews - No Hover Pause */
+      .animate-marquee-slow {
+        animation: marquee 60s linear infinite;
+      }
+
+      /* Pulsing Glow Animation for Booking Dot */
+      @keyframes pulse-glow {
+        0%, 100% { opacity: 1; box-shadow: 0 0 5px #4ade80; filter: brightness(1.5); }
+        50% { opacity: 0.5; box-shadow: 0 0 0px #4ade80; filter: brightness(1); }
+      }
+      .animate-pulse-glow {
+        animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      /* iOS Style Splash Transitions */
+      @keyframes iosFadeOut {
+        0% { opacity: 1; backdrop-filter: blur(0px); }
+        100% { opacity: 0; backdrop-filter: blur(0px); visibility: hidden; }
+      }
+      
+      @keyframes iosScaleIn {
+        0% { transform: scale(0.92); opacity: 0; filter: blur(5px); }
+        100% { transform: scale(1); opacity: 1; filter: blur(0px); }
+      }
+
+      .animate-ios-fade-out {
+        animation: iosFadeOut 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+      
+      .animate-ios-scale-in {
+        animation: iosScaleIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.574.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-grain">
+    <div id="root" class="relative z-10"></div>
+  </body>
+</html>

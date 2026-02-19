@@ -1,11 +1,106 @@
-import { ContentData, PackageItem, NoticeItem, Review } from './types';
+
+import { ContentData, PackageItem, NoticeItem, Review, MenuItem } from './types';
 
 // Admin Credentials (Obfuscated / Base64 Encoded)
-// To generate new credentials, run `btoa('your_email')` and `btoa('your_password')` in browser console.
-// Email: maiminimum9@gmail.com
-export const ENCRYPTED_ADMIN_ID = "bWFpbWluaW11bTlAZ21haWwuY29t";
+// Email: maximinimum9@gmail.com
+export const ENCRYPTED_ADMIN_ID = "bWF4aW1pbmltdW05QGdtYWlsLmNvbQ==";
 // Password: 0629
 export const ENCRYPTED_ADMIN_PW = "MDYyOQ==";
+
+export const NOTICES: NoticeItem[] = [
+  {
+    id: 'booking',
+    icon: null,
+    title: { ko: "예약 및 결제 안내", en: "Booking & Payment" },
+    description: {
+      ko: "• 예약금 10% 입금 시 확정\n• 잔금: 촬영 후 현장 결제 (현금/이체/카드)\n• 촬영 가능: 평일 08:00 ~ 17:00",
+      en: "• 10% Deposit to confirm\n• Balance on-site (Cash/Transfer/Card)\n• Weekdays 08:00 - 17:00"
+    }
+  },
+  {
+    id: 'refund',
+    icon: null,
+    title: { ko: "환불 및 규정", en: "Refund Policy" },
+    description: {
+      ko: "• 7일 전 취소 시 100% 환불\n• 우천 시 날짜 변경 또는 전액 환불\n• 지각 시 촬영 시간에서 차감",
+      en: "• 100% Refund 7 days prior\n• Rain: Reschedule or Full Refund\n• Late arrival time deducted"
+    }
+  },
+  {
+    id: 'etc',
+    icon: null,
+    title: { ko: "기타 및 준비물", en: "Details & Props" },
+    description: {
+      ko: "• 조화 꽃다발 요청 시 제공\n• 짐은 최소화 권장\n• 데이터 손실 시 100% 환불",
+      en: "• Bouquet provided upon request\n• Minimize luggage\n• 100% refund for data loss"
+    }
+  },
+  {
+    id: 'copyright',
+    icon: null,
+    title: { ko: "저작권 및 포트폴리오", en: "Copyright & Portfolio" },
+    description: {
+      ko: "• 촬영된 사진의 저작권은 작가에게 있으며, 포트폴리오로 사용될 수 있습니다.\n• 원치 않으실 경우 사전에 말씀해 주세요.",
+      en: "• Copyright belongs to the photographer and photos may be used for portfolio.\n• Please inform us in advance if you do not want this."
+    }
+  }
+];
+
+export const MENU_ITEMS: MenuItem[] = [
+  { id: 'portfolio', ko: '포트폴리오', en: 'Portfolio' },
+  { id: 'packages', ko: '촬영구성', en: 'Packages' },
+  { id: 'meeting-points', ko: '미팅장소', en: 'Location' },
+  { id: 'reviews', ko: '후기', en: 'Reviews' },
+  { id: 'notices', ko: '이용안내', en: 'Guide' }
+];
+
+export const PACKAGES: PackageItem[] = [
+  {
+    id: '60min',
+    title: { ko: "60 Minutes", en: "60 Minutes" },
+    price: "£175 / ₩350,000",
+    features: {
+      ko: ["60분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
+      en: ["60 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
+    },
+    color: "bg-white border border-stone-200 text-stone-900",
+    image: "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    id: '90min',
+    title: { ko: "90 Minutes", en: "90 Minutes" },
+    price: "£200 / ₩400,000",
+    features: {
+      ko: ["90분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
+      en: ["90 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
+    },
+    color: "bg-stone-50 border border-stone-200 text-stone-900",
+    image: "https://images.unsplash.com/photo-1520854221256-17451cc330e7?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    id: '120min',
+    title: { ko: "120 Minutes", en: "120 Minutes" },
+    price: "£250 / ₩500,000",
+    features: {
+      ko: ["120분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
+      en: ["120 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
+    },
+    color: "bg-stone-900 text-stone-50 border border-black",
+    image: "https://images.unsplash.com/photo-1511285560982-1356c11d4606?q=80&w=800&auto=format&fit=crop"
+  },
+  {
+    id: '180min',
+    title: { ko: "180 Minutes", en: "180 Minutes" },
+    price: "£350 / ₩700,000",
+    features: {
+      ko: ["180분 촬영", "원본 전체 (24시간 내)", "정밀 보정 60장 (셀렉45+작가15)", "폴라로이드 5장 현장 제공"],
+      en: ["180 min Session", "All Originals (24h)", "60 Retouched (45 Select + 15 Pro)", "5 Polaroids on-site"]
+    },
+    // Updated: Default Cotton Candy texture, Dark Text for visibility
+    color: "bg-cotton-candy text-stone-900 border border-purple-100 shadow-md",
+    image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop"
+  }
+];
 
 export const INITIAL_CONTENT: ContentData = {
   heroTitle: {
@@ -115,6 +210,28 @@ export const INITIAL_CONTENT: ContentData = {
         "https://images.unsplash.com/photo-1504593811423-6dd665756598?q=80&w=800&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=800&auto=format&fit=crop"
       ]
+    },
+    {
+      id: 'family',
+      title: { ko: "가족 사진", en: "Family" },
+      cover: "https://images.unsplash.com/photo-1542038782534-3675a4879a96?q=80&w=800&auto=format&fit=crop",
+      images: [
+        "https://images.unsplash.com/photo-1542038782534-3675a4879a96?q=80&w=800&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1609220136736-443140cffec6?q=80&w=800&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1591115765373-5207764f72e7?q=80&w=800&auto=format&fit=crop"
+      ]
+    },
+    {
+      id: 'event',
+      title: { ko: "행사 및 졸업식", en: "Event & Graduation" },
+      cover: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?q=80&w=800&auto=format&fit=crop",
+      images: [
+        "https://images.unsplash.com/photo-1523580494863-6f3031224c94?q=80&w=800&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1627556704290-2b1f5853bf78?q=80&w=800&auto=format&fit=crop"
+      ]
     }
   ],
   faqs: [
@@ -160,86 +277,24 @@ export const INITIAL_CONTENT: ContentData = {
           },
           address: "London SW1A 2JR",
           googleMapUrl: "https://goo.gl/maps/exampleBigben"
+      },
+      {
+          id: 'others',
+          title: { ko: '그 외 (협의)', en: 'Other Locations' },
+          description: { 
+              ko: "사전 상담을 통해 결정된 장소에서 미팅을 진행합니다.\n(런던 시내, 공원, 근교 등)", 
+              en: "Meeting point to be discussed via consultation.\n(Central London, Parks, Suburbs, etc.)" 
+          },
+          address: "London, UK",
+          googleMapUrl: "https://goo.gl/maps/London"
       }
-  ]
+  ],
+  menuItems: MENU_ITEMS,
+  notices: NOTICES,
+  packages: PACKAGES,
+  aiContext: "촬영 장소는 주로 런던의 랜드마크에서 진행됩니다. 의상은 밝은 톤을 추천드립니다.", // Default context
+  aiLogs: [] // Initialize empty logs
 };
-
-export const PACKAGES: PackageItem[] = [
-  {
-    id: '60min',
-    title: { ko: "60 Minutes", en: "60 Minutes" },
-    price: "£175 / ₩350,000",
-    features: {
-      ko: ["60분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
-      en: ["60 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
-    },
-    color: "bg-white border border-stone-200",
-    image: "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?q=80&w=800&auto=format&fit=crop"
-  },
-  {
-    id: '90min',
-    title: { ko: "90 Minutes", en: "90 Minutes" },
-    price: "£200 / ₩400,000",
-    features: {
-      ko: ["90분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
-      en: ["90 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
-    },
-    color: "bg-stone-50 border border-stone-200",
-    image: "https://images.unsplash.com/photo-1520854221256-17451cc330e7?q=80&w=800&auto=format&fit=crop"
-  },
-  {
-    id: '120min',
-    title: { ko: "120 Minutes", en: "120 Minutes" },
-    price: "£250 / ₩500,000",
-    features: {
-      ko: ["120분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
-      en: ["120 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
-    },
-    color: "bg-stone-900 text-stone-50 border border-black",
-    image: "https://images.unsplash.com/photo-1511285560982-1356c11d4606?q=80&w=800&auto=format&fit=crop"
-  },
-  {
-    id: '180min',
-    title: { ko: "180 Minutes", en: "180 Minutes" },
-    price: "£350 / ₩700,000",
-    features: {
-      ko: ["180분 촬영", "원본 전체 (24시간 내)", "정밀 보정 60장 (셀렉45+작가15)", "폴라로이드 5장 현장 제공"],
-      en: ["180 min Session", "All Originals (24h)", "60 Retouched (45 Select + 15 Pro)", "5 Polaroids on-site"]
-    },
-    color: "bg-[#1a4c35] text-stone-50 border border-[#1a4c35]",
-    image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop"
-  }
-];
-
-export const NOTICES: NoticeItem[] = [
-  {
-    id: 'booking',
-    icon: null,
-    title: { ko: "예약 및 결제 안내", en: "Booking & Payment" },
-    description: {
-      ko: "• 예약금 10% 입금 시 확정\n• 잔금: 촬영 후 현장 결제 (현금/이체/카드)\n• 촬영 가능: 평일 08:00 ~ 17:00",
-      en: "• 10% Deposit to confirm\n• Balance on-site (Cash/Transfer/Card)\n• Weekdays 08:00 - 17:00"
-    }
-  },
-  {
-    id: 'refund',
-    icon: null,
-    title: { ko: "환불 및 규정", en: "Refund Policy" },
-    description: {
-      ko: "• 7일 전 취소 시 100% 환불\n• 우천 시 날짜 변경 또는 전액 환불\n• 지각 시 촬영 시간에서 차감",
-      en: "• 100% Refund 7 days prior\n• Rain: Reschedule or Full Refund\n• Late arrival time deducted"
-    }
-  },
-  {
-    id: 'etc',
-    icon: null,
-    title: { ko: "기타 및 준비물", en: "Details & Props" },
-    description: {
-      ko: "• 조화 꽃다발 요청 시 제공\n• 짐은 최소화 권장\n• 데이터 손실 시 100% 환불",
-      en: "• Bouquet provided upon request\n• Minimize luggage\n• 100% refund for data loss"
-    }
-  }
-];
 
 export const DEFAULT_SLOTS = [
   "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"

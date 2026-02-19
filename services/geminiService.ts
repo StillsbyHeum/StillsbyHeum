@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 export const generateResponse = async (userPrompt: string, context: string) => {
@@ -21,12 +22,13 @@ export const generateResponse = async (userPrompt: string, context: string) => {
         Context about the studio:
         ${context}
         
-        Tone: Professional yet witty, artistic, slightly mysterious but helpful. 
-        Language: Detect the user's language (Korean or English) and reply in the same language.
+        **Instructions for response:**
+        1. Be extremely minimal, concise, and clear. 
+        2. Do NOT use markdown symbols like bolding (**), italics, or headers. Just plain text.
+        3. Do NOT be overly emotional, abstract, or rude. Be sharp and professional.
+        4. Detect the user's language and reply in the same language.
         
         User Question: ${userPrompt}
-        
-        Provide a concise and helpful answer.
       `,
     });
     return response.text;

@@ -46,24 +46,10 @@ export interface MeetingPoint {
   googleMapUrl: string;
 }
 
-export interface ContentData {
-  heroTitle: { ko: string; en: string };
-  heroSubtitle: { ko: string; en: string };
-  artistGreeting: { ko: string; en: string }; // Added Greeting
-  worksTitle: { ko: string; en: string };
-  worksSubtitle: { ko: string; en: string };
-  pricingTitle: { ko: string; en: string };
-  pricingSubtitle: { ko: string; en: string };
-  noticeTitle: { ko: string; en: string };
-  noticeSubtitle: { ko: string; en: string };
-  instagramUrl: string;
-  kakaoUrl: string;
-  collageImages: string[]; // Array of images for the home signature section
-  fontTheme: 'modern' | 'serif'; // Font choice
-  portfolio: PortfolioAlbum[]; // List of albums
-  faqs: FAQItem[]; // List of FAQs
-  backgroundMusicUrl: string; // Added background music URL
-  meetingPoints: MeetingPoint[]; // Added meeting points data
+export interface MenuItem {
+  id: string;
+  ko: string;
+  en: string;
 }
 
 export interface PackageItem {
@@ -80,6 +66,38 @@ export interface NoticeItem {
   icon: any; // Lucide icon name or component
   title: { ko: string; en: string };
   description: { ko: string; en: string };
+}
+
+export interface AILog {
+  id: string;
+  timestamp: string;
+  question: string;
+  answer: string;
+}
+
+export interface ContentData {
+  heroTitle: { ko: string; en: string };
+  heroSubtitle: { ko: string; en: string };
+  artistGreeting: { ko: string; en: string };
+  worksTitle: { ko: string; en: string };
+  worksSubtitle: { ko: string; en: string };
+  pricingTitle: { ko: string; en: string };
+  pricingSubtitle: { ko: string; en: string };
+  noticeTitle: { ko: string; en: string };
+  noticeSubtitle: { ko: string; en: string };
+  instagramUrl: string;
+  kakaoUrl: string;
+  collageImages: string[];
+  fontTheme: 'modern' | 'serif';
+  portfolio: PortfolioAlbum[];
+  faqs: FAQItem[];
+  backgroundMusicUrl: string;
+  meetingPoints: MeetingPoint[];
+  menuItems: MenuItem[];
+  notices: NoticeItem[];
+  packages: PackageItem[]; 
+  aiContext: string; // Admin defined context for AI
+  aiLogs: AILog[]; // Log of AI interactions
 }
 
 export type AdminUser = {

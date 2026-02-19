@@ -1,9 +1,10 @@
 import { ContentData, PackageItem, NoticeItem, Review } from './types';
 
-// Admin Credentials (Obfuscated)
-// Email: maiminimum9@gmail.com -> bWFpbWluaW11bTlAZ21haWwuY29t
-// Pass: 0629 -> MDYyOQ==
+// Admin Credentials (Obfuscated / Base64 Encoded)
+// To generate new credentials, run `btoa('your_email')` and `btoa('your_password')` in browser console.
+// Email: maiminimum9@gmail.com
 export const ENCRYPTED_ADMIN_ID = "bWFpbWluaW11bTlAZ21haWwuY29t";
+// Password: 0629
 export const ENCRYPTED_ADMIN_PW = "MDYyOQ==";
 
 export const INITIAL_CONTENT: ContentData = {

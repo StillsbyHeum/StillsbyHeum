@@ -1954,19 +1954,40 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     const loginAdmin = (email: string, password?: string) => {
-        if (!password) return false;
-
-        // Compare using Base64 encoded values to avoid plain text credentials in source code
-        // and using trim() to avoid login failures due to accidental whitespace
-        const inputIdHash = btoa(email.trim().toLowerCase());
-        const inputPwHash = btoa(password.trim());
-
-        if (inputIdHash === ENCRYPTED_ADMIN_ID && inputPwHash === ENCRYPTED_ADMIN_PW) {
-            setAdminUser({ email, isAuthenticated: true });
-            return true;
+        if (!password || !email) {
+            alert("이메일과 비밀번호를 입력해주세요.");
+            return false;
         }
-        alert("관리자 권한이 없습니다. (Access Denied)\n이메일과 비밀번호를 확인해주세요.");
-        return false;
+
+        try {
+            // Compare using Base64 encoded values to avoid plain text credentials in source code
+            // and using aggressive trim() to avoid login failures due to accidental whitespace
+            // btoa fails on non-Latin1 characters (e.g. Korean), so we wrap in try-catch to prevent crash
+            const safeEmail = email.trim().toLowerCase();
+            const safePassword = password.trim();
+            
+            const inputIdHash = btoa(safeEmail);
+            const inputPwHash = btoa(safePassword);
+
+            if (inputIdHash === ENCRYPTED_ADMIN_ID && inputPwHash === ENCRYPTED_ADMIN_PW) {
+                setAdminUser({ email, isAuthenticated: true });
+                return true;
+            } else {
+                // Debugging for User: Check console for what was generated vs expected
+                console.log("Login Failed. Debug Info:");
+                console.log("Input Email Hash:", inputIdHash);
+                console.log("Expected Email Hash:", ENCRYPTED_ADMIN_ID);
+                console.log("Input PW Hash:", inputPwHash);
+                console.log("Expected PW Hash:", ENCRYPTED_ADMIN_PW);
+                
+                alert("관리자 권한이 없습니다. (Access Denied)\n이메일과 비밀번호를 확인해주세요.");
+                return false;
+            }
+        } catch (e) {
+            console.error("Login Error (Encoding):", e);
+            alert("로그인 처리 중 오류가 발생했습니다. 영문/숫자만 입력해주세요.");
+            return false;
+        }
     };
     const logoutAdmin = () => setAdminUser({ email: '', isAuthenticated: false });
     const addReview = (review: Review) => setReviews(prev => [review, ...prev]);

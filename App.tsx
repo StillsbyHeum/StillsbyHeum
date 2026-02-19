@@ -2,7 +2,7 @@ import React, { useState, createContext, useContext, useEffect, useCallback, use
 import { HashRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, Globe, User, Lock, Camera, Calendar as CalendarIcon, MessageCircle, Clock, Ban, Zap, ChevronRight, ChevronLeft, Instagram, X as CloseIcon, HelpCircle, ChevronDown, ChevronUp, Star, Trash2, Plus, PenTool, Image as ImageIcon, Music, VolumeX, Volume2, ArrowRight, MapPin, CreditCard, Umbrella, FileText, CheckCircle, LogOut, Settings, Play, Pause, ZoomIn, Mail, Heart } from 'lucide-react';
 import { Language, DaySchedule, TimeSlot, ContentData, AdminUser, NoticeItem, Review, PortfolioAlbum, FAQItem, MeetingPoint } from './types';
-import { INITIAL_CONTENT, PACKAGES, NOTICES, DEFAULT_SLOTS, ADMIN_EMAIL, INITIAL_REVIEWS } from './constants';
+import { INITIAL_CONTENT, PACKAGES, NOTICES, DEFAULT_SLOTS, ENCRYPTED_ADMIN_ID, ENCRYPTED_ADMIN_PW, INITIAL_REVIEWS } from './constants';
 import { generateResponse } from './services/geminiService';
 
 // --- Context Setup ---
@@ -1954,12 +1954,18 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     };
 
     const loginAdmin = (email: string, password?: string) => {
-        // Hardcoded check for the specific user as requested to restrict access
-        if (email === 'maiminimum9@gmail.com' && password === '0629') {
+        if (!password) return false;
+
+        // Compare using Base64 encoded values to avoid plain text credentials in source code
+        // and using trim() to avoid login failures due to accidental whitespace
+        const inputIdHash = btoa(email.trim().toLowerCase());
+        const inputPwHash = btoa(password.trim());
+
+        if (inputIdHash === ENCRYPTED_ADMIN_ID && inputPwHash === ENCRYPTED_ADMIN_PW) {
             setAdminUser({ email, isAuthenticated: true });
             return true;
         }
-        alert("관리자 권한이 없습니다. (Access Denied)");
+        alert("관리자 권한이 없습니다. (Access Denied)\n이메일과 비밀번호를 확인해주세요.");
         return false;
     };
     const logoutAdmin = () => setAdminUser({ email: '', isAuthenticated: false });

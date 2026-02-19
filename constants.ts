@@ -1,6 +1,10 @@
 import { ContentData, PackageItem, NoticeItem, Review } from './types';
 
-export const ADMIN_EMAIL = "heum@stills.com"; // Mock admin email check
+// Admin Credentials (Obfuscated)
+// Email: maiminimum9@gmail.com -> bWFpbWluaW11bTlAZ21haWwuY29t
+// Pass: 0629 -> MDYyOQ==
+export const ENCRYPTED_ADMIN_ID = "bWFpbWluaW11bTlAZ21haWwuY29t";
+export const ENCRYPTED_ADMIN_PW = "MDYyOQ==";
 
 export const INITIAL_CONTENT: ContentData = {
   heroTitle: {

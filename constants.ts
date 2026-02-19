@@ -94,7 +94,7 @@ export const PACKAGES: PackageItem[] = [
       ko: ["180분 촬영", "원본 전체 (24시간 내)", "정밀 보정 60장 (셀렉45+작가15)", "폴라로이드 5장 현장 제공"],
       en: ["180 min Session", "All Originals (24h)", "60 Retouched (45 Select + 15 Pro)", "5 Polaroids on-site"]
     },
-    color: "bg-pink-50 text-stone-900 border border-pink-100",
+    color: "bg-gradient-to-br from-amber-50 via-[#FFFBEB] to-amber-100 border border-amber-300 text-amber-900 shadow-[0_0_30px_rgba(245,158,11,0.35)] ring-1 ring-amber-200",
     image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop"
   }
 ];
@@ -242,7 +242,8 @@ export const INITIAL_CONTENT: ContentData = {
       a: { ko: "원본 24시간 내, 보정본은 셀렉 후 30일 이내 제공됩니다.", en: "Originals within 24h, Retouched photos within 30 days of selection." }
     }
   ],
-  backgroundMusicUrl: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
+  // Changed to a standard MP3 for better autoplay reliability as requested.
+  backgroundMusicUrl: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=relaxing-mountains-rivers-streams-running-water-18178.mp3",
   meetingPoints: [
       {
           id: 'tower',

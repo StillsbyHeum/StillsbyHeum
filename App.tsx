@@ -1,9 +1,53 @@
 import React, { useState, createContext, useContext, useEffect, useCallback, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Globe, User, Lock, Calendar as CalendarIcon, MessageCircle, ChevronRight, ChevronLeft, Instagram, X as CloseIcon, ChevronDown, ChevronUp, Star, Trash2, Plus, Play, Pause, MapPin, ArrowRight, Edit2, Bot, Settings, HelpCircle, Check, Map, Sparkles, Music, Send, Save, MinusCircle, FileText, Image as ImageIcon } from 'lucide-react';
+import { Globe, User, Lock, Calendar as CalendarIcon, MessageCircle, ChevronRight, ChevronLeft, Instagram, X as CloseIcon, ChevronDown, ChevronUp, Star, Trash2, Plus, Play, Pause, MapPin, ArrowRight, Edit2, Bot, Settings, HelpCircle, Check, Map, Sparkles, Music, Send, Save, MinusCircle, FileText, Image as ImageIcon, RefreshCw, LayoutDashboard, Type, List, LogOut, Upload, GripHorizontal, AlertCircle } from 'lucide-react';
 import { Language, DaySchedule, ContentData, AdminUser, NoticeItem, Review, PortfolioAlbum, FAQItem, AILog } from './types';
 import { INITIAL_CONTENT, DEFAULT_SLOTS, ENCRYPTED_ADMIN_ID, ENCRYPTED_ADMIN_PW, INITIAL_REVIEWS } from './constants';
 import { generateResponse } from './services/geminiService';
+
+// --- Helper: Image/File Compression & Conversion ---
+// OPTIMIZED: Reduced maxWidth and quality to ensure data fits in localStorage (usually 5MB limit).
+const compressImage = (file: File, maxWidth: number = 600, quality: number = 0.6): Promise<string> => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                } else {
+                    resolve(img.src); // Fallback
+                }
+            };
+            img.onerror = () => resolve("");
+        };
+        reader.onerror = () => resolve("");
+    });
+};
+
+const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
 
 // --- Context Setup ---
 
@@ -23,10 +67,13 @@ interface AppContextType {
   reviews: Review[];
   addReview: (review: Review) => void;
   deleteReview: (id: string) => void;
+  updateReview: (updatedReview: Review) => void;
   addPortfolioImage: (albumId: string, imageUrl: string) => void;
   removePortfolioImage: (albumId: string, imageIndex: number) => void;
+  reorderPortfolioImages: (albumId: string, fromIndex: number, toIndex: number) => void;
   // AI Management
   setAIContext: (newContext: string) => void;
+  logAIInteraction: (question: string, answer: string) => void;
   isPlaying: boolean;
   toggleAudio: () => void;
   requestBooking: (date: string, slotId: string) => void;
@@ -34,6 +81,8 @@ interface AppContextType {
   setSelectedAlbum: (album: PortfolioAlbum | null) => void;
   viewingImage: string | null;
   setViewingImage: (url: string | null) => void;
+  storageWarning: boolean;
+  manualSave: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -46,53 +95,215 @@ export const useAppContext = () => {
 
 // --- AppProvider Implementation ---
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [storageWarning, setStorageWarning] = useState(false);
+
+  // --- PERSISTENCE HELPER (ROBUST MERGE) ---
+  const usePersistentState = <T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+      const [state, setState] = useState<T>(() => {
+          try {
+              const item = localStorage.getItem(key);
+              if (item) {
+                  const parsed = JSON.parse(item);
+                  
+                  // Safety Check: Handle Array Types specifically (e.g. reviews)
+                  if (Array.isArray(initialValue)) {
+                      return Array.isArray(parsed) ? parsed as T : initialValue;
+                  }
+
+                  // Object Merge Strategy:
+                  // We merge initialValue (code defaults) with parsed (saved user data).
+                  // Parsed data MUST override initialValue for existing keys.
+                  // New keys in initialValue (from code updates) will be added.
+                  if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue)) {
+                      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                          return { ...initialValue, ...parsed };
+                      }
+                  }
+
+                  return parsed;
+              }
+              return initialValue;
+          } catch (e) {
+              console.error("Storage parse error", e);
+              return initialValue;
+          }
+      });
+
+      // Auto-save effect with debounce
+      useEffect(() => {
+          const handler = setTimeout(() => {
+              try {
+                  const serialized = JSON.stringify(state);
+                  localStorage.setItem(key, serialized);
+                  setStorageWarning(false);
+              } catch (e) {
+                  console.error("Storage save failed", e);
+                  // Use specific error check for quota exceeded
+                  if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+                      setStorageWarning(true);
+                  }
+              }
+          }, 800); // Debounce saves by 800ms
+
+          return () => clearTimeout(handler);
+      }, [key, state]);
+
+      return [state, setState];
+  };
+
   const [language, setLanguage] = useState<Language>('ko');
-  const [content, setContent] = useState<ContentData>(INITIAL_CONTENT);
-  const [schedule, setSchedule] = useState<Record<string, DaySchedule>>({});
-  const [adminUser, setAdminUser] = useState<AdminUser>({ email: '', isAuthenticated: false });
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  
+  // Persisted States
+  const [content, setContent] = usePersistentState<ContentData>('sbh_content', INITIAL_CONTENT);
+  const [schedule, setSchedule] = usePersistentState<Record<string, DaySchedule>>('sbh_schedule', {});
+  const [reviews, setReviews] = usePersistentState<Review[]>('sbh_reviews', INITIAL_REVIEWS);
+  const [adminUser, setAdminUser] = usePersistentState<AdminUser>('sbh_admin', { email: '', isAuthenticated: false });
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState<PortfolioAlbum | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  
+  // Audio Refs & State
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scWidgetRef = useRef<any>(null);
+  const [isSoundCloud, setIsSoundCloud] = useState(false);
+  const [scUrl, setScUrl] = useState("");
+  const [isWidgetReady, setIsWidgetReady] = useState(false);
 
-  // Audio setup
+  // --- Manual Save Function ---
+  const manualSave = () => {
+      try {
+          localStorage.setItem('sbh_content', JSON.stringify(content));
+          localStorage.setItem('sbh_schedule', JSON.stringify(schedule));
+          localStorage.setItem('sbh_reviews', JSON.stringify(reviews));
+          localStorage.setItem('sbh_admin', JSON.stringify(adminUser));
+          setStorageWarning(false);
+          alert(language === 'ko' ? "모든 변경사항이 저장되었습니다." : "All changes saved successfully.");
+      } catch (e) {
+          console.error("Manual save failed", e);
+          setStorageWarning(true);
+          alert(language === 'ko' ? "저장 실패: 용량이 부족합니다. 사진을 줄이거나 일부 삭제해주세요." : "Save Failed: Storage full. Please delete some images.");
+      }
+  };
+
+  // --- Audio Logic ---
+  const getCleanSoundCloudUrl = (url: string) => {
+      if (!url.includes("soundcloud.com")) return url;
+      try {
+          const urlObj = new URL(url);
+          return urlObj.origin + urlObj.pathname;
+      } catch (e) {
+          return url;
+      }
+  };
+
+  const tryPlay = useCallback(() => {
+    if (isSoundCloud && scWidgetRef.current && isWidgetReady) {
+         scWidgetRef.current.play();
+    } else if (audioRef.current) {
+         const playPromise = audioRef.current.play();
+         if (playPromise !== undefined) {
+             playPromise
+                .then(() => setIsPlaying(true))
+                .catch(e => {
+                    // Expected behavior if no interaction yet
+                    setIsPlaying(false);
+                });
+         }
+    }
+  }, [isSoundCloud, isWidgetReady]);
+
+  // Global Click Listener for Music Autoplay
   useEffect(() => {
+    const handleInteraction = () => {
+        if (!isPlaying) {
+            tryPlay();
+        }
+    };
+    
+    // Listen to any interaction to trigger audio
+    window.addEventListener('click', handleInteraction, { once: false });
+    window.addEventListener('touchstart', handleInteraction, { once: false });
+    window.addEventListener('keydown', handleInteraction, { once: false });
+    window.addEventListener('scroll', handleInteraction, { once: false });
+
+    return () => {
+        window.removeEventListener('click', handleInteraction);
+        window.removeEventListener('touchstart', handleInteraction);
+        window.removeEventListener('keydown', handleInteraction);
+        window.removeEventListener('scroll', handleInteraction);
+    };
+  }, [isPlaying, tryPlay]);
+
+  useEffect(() => {
+    // 1. Cleanup
     if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
     }
-    audioRef.current = new Audio(content.backgroundMusicUrl);
-    audioRef.current.loop = true;
     
-    // Auto-play attempt
-    const playPromise = audioRef.current.play();
-    if (playPromise !== undefined) {
-        playPromise
-            .then(() => setIsPlaying(true))
-            .catch(error => {
-                console.log("Auto-play prevented. User interaction required.");
-                setIsPlaying(false);
-            });
-    }
+    // 2. Setup
+    const rawUrl = content.backgroundMusicUrl || "";
+    const isSC = rawUrl.includes("soundcloud.com");
+    setIsSoundCloud(isSC);
+    setIsPlaying(false);
+    setIsWidgetReady(false);
 
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, [content.backgroundMusicUrl]);
+    if (!rawUrl) return;
+
+    if (isSC) {
+        setScUrl(getCleanSoundCloudUrl(rawUrl));
+    } else {
+        // Only create Audio if URL is not empty and likely valid
+        if (rawUrl.length > 5) {
+            const audio = new Audio(rawUrl);
+            audio.loop = true;
+            audio.volume = 0.5;
+            audioRef.current = audio;
+            tryPlay();
+        }
+    }
+  }, [content.backgroundMusicUrl]); 
+
+  // SC Widget Setup
+  useEffect(() => {
+    if (isSoundCloud && scUrl) {
+        const iframe = document.getElementById('sc-player') as HTMLIFrameElement;
+        if (iframe && (window as any).SC) {
+            const widget = (window as any).SC.Widget(iframe);
+            scWidgetRef.current = widget;
+
+            const onReady = () => {
+                setIsWidgetReady(true);
+                widget.setVolume(50);
+                widget.play();
+            };
+            const onPlay = () => setIsPlaying(true);
+            const onPause = () => setIsPlaying(false);
+            const onFinish = () => { widget.seekTo(0); widget.play(); };
+
+            widget.bind((window as any).SC.Widget.Events.READY, onReady);
+            widget.bind((window as any).SC.Widget.Events.PLAY, onPlay);
+            widget.bind((window as any).SC.Widget.Events.PAUSE, onPause);
+            widget.bind((window as any).SC.Widget.Events.FINISH, onFinish);
+        }
+    }
+  }, [isSoundCloud, scUrl]);
 
   const toggleAudio = useCallback(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(e => console.log("Audio play failed", e));
+    if (isSoundCloud && scWidgetRef.current) {
+        scWidgetRef.current.toggle();
+    } else if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
     }
-    setIsPlaying(!isPlaying);
-  }, [isPlaying]);
+  }, [isPlaying, isSoundCloud]);
+
+  // --- Content Update Helpers ---
 
   const updateContent = (key: keyof ContentData, subKey: string, value: any) => {
     setContent(prev => {
@@ -157,6 +368,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const addReview = (review: Review) => setReviews(prev => [review, ...prev]);
   const deleteReview = (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
+  const updateReview = (updatedReview: Review) => {
+      setReviews(prev => prev.map(r => r.id === updatedReview.id ? updatedReview : r));
+  };
 
   const addPortfolioImage = (albumId: string, imageUrl: string) => {
       setContent(prev => {
@@ -184,87 +398,71 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       });
   };
 
+  const reorderPortfolioImages = (albumId: string, fromIndex: number, toIndex: number) => {
+      setContent(prev => {
+          const updatedPortfolio = prev.portfolio.map(a => {
+              if (a.id === albumId) {
+                  const newImages = [...a.images];
+                  const [movedItem] = newImages.splice(fromIndex, 1);
+                  newImages.splice(toIndex, 0, movedItem);
+                  return { ...a, images: newImages };
+              }
+              return a;
+          });
+          if (selectedAlbum?.id === albumId) {
+              const updatedAlbum = updatedPortfolio.find(a => a.id === albumId);
+              if (updatedAlbum) setSelectedAlbum(updatedAlbum);
+          }
+          return { ...prev, portfolio: updatedPortfolio };
+      });
+  };
+
   const setAIContext = (newContext: string) => setContent(prev => ({ ...prev, aiContext: newContext }));
+  
+  const logAIInteraction = (question: string, answer: string) => {
+      const newLog: AILog = {
+          id: Date.now().toString(),
+          timestamp: new Date().toLocaleString(),
+          question,
+          answer
+      };
+      setContent(prev => ({
+          ...prev,
+          aiLogs: [newLog, ...(prev.aiLogs || [])].slice(0, 50) 
+      }));
+  };
+
   const requestBooking = (date: string, slotId: string) => { toggleSlot(date, slotId, 'book'); };
 
   return (
     <AppContext.Provider value={{
       language, setLanguage, content, updateContent, updateCollectionItem, addCollectionItem, removeCollectionItem,
       schedule, toggleSlot, adminUser, loginAdmin, logoutAdmin,
-      reviews, addReview, deleteReview,
-      addPortfolioImage, removePortfolioImage,
-      setAIContext, isPlaying, toggleAudio, requestBooking,
+      reviews, addReview, deleteReview, updateReview,
+      addPortfolioImage, removePortfolioImage, reorderPortfolioImages,
+      setAIContext, logAIInteraction, isPlaying, toggleAudio, requestBooking,
       selectedAlbum, setSelectedAlbum,
-      viewingImage, setViewingImage
+      viewingImage, setViewingImage, storageWarning, manualSave
     }}>
       {children}
+      {isSoundCloud && (
+          <iframe
+              id="sc-player"
+              width="100%"
+              height="166"
+              scrolling="no"
+              frameBorder="no"
+              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+              src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(scUrl)}&auto_play=true&show_artwork=false&visual=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false`}
+              style={{ position: 'fixed', bottom: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }} 
+          />
+      )}
     </AppContext.Provider>
   );
 };
 
 // --- Styles & Helpers ---
 const FOREST_GREEN = "bg-[#1a4c35]"; 
-
-// Generic Editable Text - FIXED propagation issues
-const GenericEditableText: React.FC<{ text: string | number; onSave: (v: string) => void; className?: string; stopPropagation?: boolean }> = ({ text, onSave, className, stopPropagation = true }) => {
-    const { adminUser } = useAppContext();
-    const handleEdit = (e: React.MouseEvent) => {
-        if (!adminUser.isAuthenticated) return;
-        if (stopPropagation) { 
-            e.stopPropagation(); 
-            e.nativeEvent.stopImmediatePropagation();
-        }
-        
-        // Use timeout to ensure execution stack clears before blocking prompt
-        setTimeout(() => {
-            const newValue = prompt(`Edit text:`, String(text));
-            if (newValue !== null) onSave(newValue);
-        }, 10);
-    };
-
-    if (adminUser.isAuthenticated) {
-        return (
-            <span 
-                onClick={handleEdit} 
-                className={`cursor-pointer bg-yellow-100/30 hover:bg-yellow-200 hover:outline-dashed hover:outline-1 hover:outline-yellow-500 rounded px-1 transition-all relative group inline-block z-50 ${className}`}
-                title="Click to edit"
-            >
-                {text || 'Empty'}
-                <span className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 bg-yellow-400 text-black text-[9px] px-1 rounded font-bold pointer-events-none z-50 shadow-sm">EDIT</span>
-            </span>
-        );
-    }
-    return <span className={className}>{text}</span>;
-};
-
-// Generic Editable Image
-const GenericEditableImage: React.FC<{ src: string; onSave: (v: string) => void; className?: string; alt?: string }> = ({ src, onSave, className, alt }) => {
-    const { adminUser } = useAppContext();
-    const handleEdit = (e: React.MouseEvent) => {
-        if (!adminUser.isAuthenticated) return;
-        e.stopPropagation(); e.preventDefault();
-        const newValue = prompt("Enter new image URL:", src);
-        if (newValue !== null && newValue.trim() !== "") onSave(newValue);
-    };
-
-    return (
-        <div className={`relative group ${className}`}>
-            <img src={src} className="w-full h-full object-cover" alt={alt || ""} />
-            {adminUser.isAuthenticated && (
-                 <button onClick={handleEdit} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs z-10">
-                    <Edit2 size={16} className="mr-1" /> CHANGE IMG
-                 </button>
-            )}
-        </div>
-    );
-};
-
-// Wrapper for Content Data
-const EditableText: React.FC<{ valueKey: keyof ContentData; className?: string }> = ({ valueKey, className }) => {
-    const { content, updateContent, language } = useAppContext();
-    const textData = content[valueKey] as any;
-    return <GenericEditableText text={textData[language]} onSave={(val) => updateContent(valueKey, language, val)} className={className} />;
-};
 
 const SplashScreen: React.FC<{ onFinish: () => void; isFinishing: boolean }> = ({ onFinish, isFinishing }) => {
     useEffect(() => {
@@ -291,12 +489,12 @@ const ScrollToTop = () => {
 // --- Components ---
 
 const AlbumDetail: React.FC = () => {
-    const { selectedAlbum, setSelectedAlbum, removePortfolioImage, addPortfolioImage, adminUser, setViewingImage } = useAppContext();
+    const { selectedAlbum, setSelectedAlbum, setViewingImage } = useAppContext();
 
     if (!selectedAlbum) return null;
 
     return (
-        <div className="fixed inset-0 z-[9000] bg-white overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 z-[9999] bg-white overflow-y-auto animate-fade-in">
             <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-stone-100">
                 <button onClick={() => setSelectedAlbum(null)} className="p-2 rounded-full hover:bg-stone-100"><CloseIcon size={24} /></button>
                 <h2 className="font-outfit text-xl font-bold">{selectedAlbum.title.en}</h2>
@@ -306,14 +504,8 @@ const AlbumDetail: React.FC = () => {
                 {selectedAlbum.images.map((img, idx) => (
                     <div key={idx} className="relative group break-inside-avoid" onClick={() => setViewingImage(img)}>
                         <img src={img} className="w-full rounded-lg hover:opacity-90 transition cursor-zoom-in" alt={`Album ${idx}`} />
-                        {adminUser.isAuthenticated && (
-                            <button onClick={(e) => { e.stopPropagation(); removePortfolioImage(selectedAlbum.id, idx); }} className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition"><Trash2 size={12} /></button>
-                        )}
                     </div>
                 ))}
-                {adminUser.isAuthenticated && (
-                    <button onClick={() => { const url = prompt("URL?"); if(url) addPortfolioImage(selectedAlbum.id, url); }} className="w-full aspect-[3/4] border-2 border-dashed border-stone-300 flex flex-col items-center justify-center text-stone-400 hover:text-stone-900"><Plus size={32} /> ADD PHOTO</button>
-                )}
             </div>
         </div>
     );
@@ -325,7 +517,7 @@ const ImageViewer: React.FC = () => {
     if (!viewingImage) return null;
 
     return (
-        <div className="fixed inset-0 z-[9995] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
+        <div className="fixed inset-0 z-[99995] bg-black/95 flex items-center justify-center animate-fade-in" onClick={() => setViewingImage(null)}>
             <img src={viewingImage} className="max-w-full max-h-screen object-contain p-4 transition-transform duration-300 scale-100" />
             <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-white/20 backdrop-blur-sm">
                 <CloseIcon size={24} />
@@ -336,6 +528,7 @@ const ImageViewer: React.FC = () => {
 
 // Hero Section (3D Spline Restored)
 const HeroSection: React.FC = () => {
+  const { content, language } = useAppContext();
   return (
     <section className="relative h-screen w-full overflow-hidden bg-white mb-12">
         <iframe 
@@ -348,7 +541,9 @@ const HeroSection: React.FC = () => {
         />
         <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-end pb-48 md:pb-32">
             <div className="pointer-events-auto relative z-30">
-                <EditableText valueKey="heroSubtitle" className="text-stone-500 font-medium tracking-wide text-sm md:text-base bg-white/50 backdrop-blur-md px-4 py-2 rounded-full border border-white/40" />
+                <div className="text-stone-500 font-medium tracking-wide text-sm md:text-base bg-white/50 backdrop-blur-md px-4 py-2 rounded-full border border-white/40">
+                    {content.heroSubtitle[language]}
+                </div>
             </div>
         </div>
         <div className="absolute bottom-0 left-0 w-full h-64 bg-gradient-to-t from-white via-white/80 to-transparent z-10 pointer-events-none" />
@@ -389,7 +584,6 @@ const FloatingDock: React.FC<{ onOpenFAQ: () => void }> = ({ onOpenFAQ }) => {
                 </a>
                 <div className="w-px h-5 bg-stone-300 mx-1" />
                 <button onClick={onOpenFAQ} className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-full font-bold text-xs hover:bg-stone-800 transition shadow-md">
-                    {/* Custom Face Icon without Circle */}
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M8 14s1.5 2 4 2 4-2 4-2" />
                         <line x1="9" y1="9" x2="9.01" y2="9" />
@@ -404,50 +598,35 @@ const FloatingDock: React.FC<{ onOpenFAQ: () => void }> = ({ onOpenFAQ }) => {
 
 // Portfolio Strip Component
 const PortfolioStrip: React.FC<{ album: PortfolioAlbum, duration: number }> = ({ album, duration }) => {
-    const { language, setSelectedAlbum, updateCollectionItem, adminUser, setViewingImage } = useAppContext();
-    // Triple the images to ensure smooth looping
+    const { language, setSelectedAlbum, setViewingImage } = useAppContext();
     const displayImages = [...album.images, ...album.images, ...album.images].slice(0, 15); 
     const fallbackImage = album.cover;
 
     return (
         <div className="relative w-full h-auto py-4 overflow-hidden bg-white border-b border-stone-100 last:border-0 group/strip">
-            {/* Floating Title - Centered - Click to Enter Album */}
             <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                <div className="bg-white/80 backdrop-blur-sm px-8 py-3 rounded-full shadow-sm border border-white/50 pointer-events-auto cursor-pointer hover:scale-105 transition transform" onClick={() => setSelectedAlbum(album)}>
-                    <h3 className="text-xl md:text-3xl font-bold tracking-tighter text-black uppercase font-outfit relative group/title">
-                         {/* Enhanced EditableText Visibility */}
-                         <GenericEditableText 
-                            text={language === 'ko' ? album.title.ko : album.title.en} 
-                            onSave={(val) => updateCollectionItem('portfolio', { ...album, title: { ...album.title, [language]: val } })}
-                            className="relative z-50"
-                        />
+                <div className="bg-white/80 backdrop-blur-sm px-8 py-3 rounded-full shadow-sm border border-white/50 pointer-events-auto cursor-pointer hover:scale-105 transition transform flex flex-col items-center gap-2" onClick={() => setSelectedAlbum(album)}>
+                    <h3 className="text-xs md:text-sm font-bold tracking-widest text-black uppercase font-outfit relative group/title">
+                         <span className="relative z-50">{album.title[language]}</span>
                     </h3>
                 </div>
             </div>
 
-            {/* Marquee Container - Continuous Flow (Pause only if Admin) - Variable Speed */}
             <div 
-                className={`flex gap-4 animate-marquee ${adminUser.isAuthenticated ? 'hover:[animation-play-state:paused]' : ''} w-max px-4 items-center`}
+                className={`flex gap-4 animate-marquee w-max px-4 items-center`}
                 style={{ animationDuration: `${duration}s` }}
             >
                 {(displayImages.length > 0 ? displayImages : [fallbackImage, fallbackImage, fallbackImage, fallbackImage]).map((img, idx) => (
                     <div 
                         key={`${album.id}-${idx}`} 
-                        // Click Image -> Open Lightbox
                         onClick={() => setViewingImage(img)}
                         className={`
                             relative shrink-0 rounded-lg overflow-hidden cursor-pointer
-                            w-[85vw] h-auto aspect-[3/4]  /* Mobile: Wide card */
-                            md:w-auto md:h-[60vh] md:aspect-[3/4] /* Desktop: Height constraint */
+                            w-[85vw] h-auto aspect-[3/4] 
+                            md:w-auto md:h-[60vh] md:aspect-[3/4]
                         `}
                     >
-                        <GenericEditableImage 
-                            src={img} 
-                            onSave={(newUrl) => {
-                                alert("Please click the title to enter album view and manage photos securely.");
-                            }}
-                            className="w-full h-full"
-                        />
+                        <img src={img} className="w-full h-full object-cover" alt="Portfolio" />
                         <div className="absolute inset-0 bg-black/0 group-hover/strip:bg-black/10 transition pointer-events-none" />
                     </div>
                 ))}
@@ -459,16 +638,12 @@ const PortfolioStrip: React.FC<{ album: PortfolioAlbum, duration: number }> = ({
 // Pages
 const PortfolioPage: React.FC = () => {
     const { content } = useAppContext();
-    // Order: Wedding -> Couple -> Solo -> Event
     const orderedIds = ['wedding', 'couple', 'solo', 'event'];
-    // Distinct speeds for visual variety
     const durations = [60, 40, 50, 30]; 
 
     return (
         <div className="min-h-screen bg-white pb-20">
-            {/* Restored Hero Section */}
             <HeroSection />
-            
             <div className="flex flex-col gap-0 -mt-12 relative z-10 bg-white rounded-t-[3rem] shadow-2xl pt-12">
                 {orderedIds.map((id, index) => {
                     const album = content.portfolio.find(p => p.id === id);
@@ -481,7 +656,7 @@ const PortfolioPage: React.FC = () => {
 };
 
 const ReviewSection: React.FC = () => {
-    const { reviews, language, adminUser, deleteReview } = useAppContext();
+    const { reviews } = useAppContext();
     return (
         <section className="py-8">
             <h2 className="text-3xl font-bold font-outfit mb-8 text-center">REVIEWS</h2>
@@ -505,11 +680,6 @@ const ReviewSection: React.FC = () => {
                                 ))}
                             </div>
                         )}
-                        {adminUser.isAuthenticated && (
-                            <button onClick={() => deleteReview(r.id)} className="absolute top-4 right-4 text-red-400 opacity-0 group-hover:opacity-100 transition hover:text-red-600">
-                                <Trash2 size={16} />
-                            </button>
-                        )}
                     </div>
                 ))}
             </div>
@@ -518,12 +688,12 @@ const ReviewSection: React.FC = () => {
 };
 
 const InfoPage: React.FC = () => {
-    const { content, language, updateCollectionItem } = useAppContext();
+    const { content, language } = useAppContext();
     return (
         <div className="min-h-screen pt-32 px-6 pb-32 max-w-4xl mx-auto space-y-24">
              <section className="text-center">
                 <h2 className="text-sm font-bold uppercase tracking-widest text-stone-400 mb-4">Artist</h2>
-                <p className="text-xl md:text-2xl leading-relaxed font-light whitespace-pre-line"><EditableText valueKey="artistGreeting" /></p>
+                <p className="text-xl md:text-2xl leading-relaxed font-light whitespace-pre-line">{content.artistGreeting[language]}</p>
              </section>
 
              <section>
@@ -531,8 +701,8 @@ const InfoPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {content.packages.map(pkg => (
                         <div key={pkg.id} className={`p-8 rounded-3xl border relative overflow-hidden group ${pkg.color} min-h-[300px]`}>
-                            <h3 className="text-2xl font-bold mb-2"><GenericEditableText text={pkg.title[language]} onSave={v => updateCollectionItem('packages', {...pkg, title: {...pkg.title, [language]: v}})} /></h3>
-                            <p className="text-lg opacity-70 mb-6"><GenericEditableText text={pkg.price} onSave={v => updateCollectionItem('packages', {...pkg, price: v})} /></p>
+                            <h3 className="text-2xl font-bold mb-2">{pkg.title[language]}</h3>
+                            <p className="text-lg opacity-70 mb-6">{pkg.price}</p>
                             <ul className="space-y-2 text-sm opacity-90">
                                 {pkg.features[language].map((f, i) => (
                                     <li key={i} className="flex gap-2"><Check size={14} className="mt-1"/> <span>{f}</span></li>
@@ -553,8 +723,8 @@ const InfoPage: React.FC = () => {
                  <div className="space-y-8">
                      {content.notices.map(n => (
                          <div key={n.id} className="border-l-2 border-stone-200 pl-6">
-                             <h4 className="font-bold text-lg mb-2"><GenericEditableText text={n.title[language]} onSave={v => updateCollectionItem('notices', {...n, title: {...n.title, [language]: v}})} /></h4>
-                             <p className="text-stone-600 whitespace-pre-line"><GenericEditableText text={n.description[language]} onSave={v => updateCollectionItem('notices', {...n, description: {...n.description, [language]: v}})} /></p>
+                             <h4 className="font-bold text-lg mb-2">{n.title[language]}</h4>
+                             <p className="text-stone-600 whitespace-pre-line">{n.description[language]}</p>
                          </div>
                      ))}
                  </div>
@@ -573,6 +743,8 @@ const CalendarView: React.FC = () => {
     const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
     const [bookingForm, setBookingForm] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [errorMessage, setErrorMessage] = useState('');
 
     // Helper to get local YYYY-MM-DD string
     const getLocalDateStr = (date: Date) => {
@@ -582,18 +754,16 @@ const CalendarView: React.FC = () => {
         return `${year}-${month}-${day}`;
     };
 
-    // Initial Date Setup
     useEffect(() => {
         const d = new Date(); d.setDate(d.getDate() + 1);
         setSelectedDate(getLocalDateStr(d));
     }, []);
 
-    // Generate Calendar Cells with padding
     const getCalendarCells = () => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
         const firstDayOfMonth = new Date(year, month, 1);
-        const startingDayIndex = firstDayOfMonth.getDay(); // 0 (Sunday) to 6 (Saturday)
+        const startingDayIndex = firstDayOfMonth.getDay(); 
         const lastDayOfMonth = new Date(year, month + 1, 0);
         const totalDays = lastDayOfMonth.getDate();
 
@@ -623,6 +793,8 @@ const CalendarView: React.FC = () => {
     const handleBooking = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setSubmitStatus('loading');
+        setErrorMessage('');
 
         const payload = {
             ...bookingForm,
@@ -636,57 +808,45 @@ const CalendarView: React.FC = () => {
             const response = await fetch("https://formspree.io/f/maqddwqk", {
                 method: "POST",
                 body: JSON.stringify(payload),
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }
             });
 
             if (response.ok) {
+                setSubmitStatus('success');
                 alert(language === 'ko' ? "예약 요청이 전송되었습니다." : "Request sent.");
                 selectedTimeSlots.forEach(t => requestBooking(selectedDate, t));
                 setBookingForm(null);
                 setSelectedTimeSlots([]);
                 setSelectedLocations([]);
             } else {
-                alert(language === 'ko' ? "전송에 실패했습니다. 다시 시도해주세요." : "Failed to send. Please try again.");
+                setSubmitStatus('error');
+                const data = await response.json();
+                setErrorMessage(data.error || (language === 'ko' ? "알 수 없는 오류" : "Unknown Error"));
             }
         } catch (error) {
-             alert(language === 'ko' ? "오류가 발생했습니다." : "An error occurred.");
+             setSubmitStatus('error');
+             setErrorMessage(language === 'ko' ? "네트워크 오류" : "Network Error");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Constraint Logic
     const isSlotDisabled = (dateStr: string, timeStr: string) => {
         const slotDate = new Date(`${dateStr}T${timeStr}`);
         const now = new Date();
         const fourHoursLater = new Date(now.getTime() + (4 * 60 * 60 * 1000));
 
-        // 1. 4 Hours Buffer
         if (slotDate < fourHoursLater) return true;
-
-        const dayOfWeek = slotDate.getDay(); // 0 Sun, 6 Sat
-
-        // 2. Saturday > 14:00 Blocked
+        const dayOfWeek = slotDate.getDay(); 
         if (dayOfWeek === 6) {
             const hour = parseInt(timeStr.split(':')[0]);
-            // If time is 15:00 or later, block. 14:00 is acceptable? 
-            // "2시 이후 불가" usually implies 14:00 is the last slot or 14:00 is not allowed. 
-            // Assuming 14:00 is fine, 15:00+ blocked.
             if (hour > 14) return true;
         }
-
-        // 3. Weekday (Mon-Fri) 07:00-16:00
         if (dayOfWeek >= 1 && dayOfWeek <= 5) {
             const hour = parseInt(timeStr.split(':')[0]);
             if (hour < 7 || hour > 16) return true;
         }
-
-        // 4. Sunday (Usually fully blocked based on calendar view, but specific slots also blocked)
         if (dayOfWeek === 0) return true;
-
         return false;
     };
 
@@ -732,7 +892,7 @@ const CalendarView: React.FC = () => {
                     let className = "relative p-2 rounded-lg transition-all h-14 flex flex-col items-center justify-center ";
                     if (isSel) className += "bg-black text-white shadow-lg scale-105 z-10 ";
                     else if (isPast) className += "text-stone-300 backdrop-blur-sm opacity-30 cursor-not-allowed ";
-                    else if (isSunday) className += "text-red-300 cursor-not-allowed bg-red-50/50 "; // Keep styling but remove text
+                    else if (isSunday) className += "text-red-300 cursor-not-allowed bg-red-50/50 "; 
                     else className += "hover:bg-stone-100 text-stone-600 ";
 
                     return (
@@ -743,29 +903,24 @@ const CalendarView: React.FC = () => {
                             className={className}
                         >
                             <span className="text-sm font-bold">{day.getDate()}</span>
-                            {/* Removed the 'FULL' span here */}
                         </button>
                     )
                 })}
             </div>
 
-            {/* Time Slots */}
             <div className="grid grid-cols-4 gap-2 mb-6">
                 {DEFAULT_SLOTS.map(time => {
-                    // Schedule Check
                     const isBlocked = schedule[selectedDate]?.slots.find(s=>s.time===time)?.isBlocked;
                     const isBooked = schedule[selectedDate]?.slots.find(s=>s.time===time)?.isBooked;
-                    
-                    // Logic Check (4h, Sat 2pm, etc)
                     const isConstraintDisabled = isSlotDisabled(selectedDate, time);
-
                     const isSel = selectedTimeSlots.includes(time);
                     
-                    // Admin override: Admin can select blocked/booked/constrained slots to manage them
                     const disabled = !adminUser.isAuthenticated && (isBlocked || isBooked || isConstraintDisabled);
 
                     let btnClass = "py-3 text-sm border rounded-xl transition font-medium ";
-                    if (isSel) btnClass += "bg-green-800 text-white border-green-800 shadow-md transform scale-105 ";
+                    if (isBlocked && adminUser.isAuthenticated) btnClass += "bg-red-100 text-red-500 border-red-200 line-through ";
+                    else if (isBooked && adminUser.isAuthenticated) btnClass += "bg-blue-100 text-blue-500 border-blue-200 ";
+                    else if (isSel) btnClass += "bg-green-800 text-white border-green-800 shadow-md transform scale-105 ";
                     else if (disabled) btnClass += "bg-stone-100 text-stone-300 border-transparent cursor-not-allowed ";
                     else btnClass += "bg-white border-stone-200 hover:border-black text-stone-700 ";
 
@@ -778,14 +933,12 @@ const CalendarView: React.FC = () => {
                 })}
             </div>
 
-            {/* Next Button */}
             {selectedTimeSlots.length > 0 && selectedLocations.length > 0 && !bookingForm && (
                 <button onClick={() => setBookingForm({})} className="w-full bg-black text-white py-4 rounded-xl font-bold hover:scale-[1.02] transition shadow-xl animate-fade-in">
                     NEXT STEP <ArrowRight size={16} className="inline ml-1"/>
                 </button>
             )}
 
-            {/* Booking Form */}
             {bookingForm && (
                 <form onSubmit={handleBooking} className="space-y-4 bg-stone-50 p-6 rounded-2xl animate-fade-in border border-stone-200 mt-6">
                     <h4 className="font-bold text-lg mb-4">{language === 'ko' ? '3. 예약 정보 입력' : '3. Booking Details'}</h4>
@@ -818,6 +971,12 @@ const CalendarView: React.FC = () => {
                     <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white py-4 rounded-xl font-bold hover:opacity-90 transition shadow-lg flex items-center justify-center">
                         {isSubmitting ? 'SENDING...' : 'CONFIRM BOOKING'}
                     </button>
+                    {submitStatus === 'error' && (
+                        <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg mt-2 border border-red-100 animate-pulse">
+                            <AlertCircle size={20} className="shrink-0" />
+                            <span className="text-sm font-bold">{language === 'ko' ? "전송 실패: " : "Failed: "}{errorMessage}</span>
+                        </div>
+                    )}
                 </form>
             )}
         </div>
@@ -840,7 +999,7 @@ interface Message {
 }
 
 const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-    const { content, language } = useAppContext();
+    const { content, language, logAIInteraction } = useAppContext();
     const [q, setQ] = useState('');
     const [messages, setMessages] = useState<Message[]>([
         { id: 0, text: language === 'ko' ? "안녕하세요! 무엇을 도와드릴까요?" : "Hello! How can I help you?", sender: 'bot' }
@@ -864,9 +1023,11 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
         if (!text.trim()) return;
         addMessage(text, 'user');
         setLoading(true);
-        const res = await generateResponse(text, content.aiContext);
+        // Pass the LATEST content to the AI so it knows about admin updates
+        const res = await generateResponse(text, content.aiContext, content);
         setLoading(false);
         addMessage(res, 'bot');
+        logAIInteraction(text, res);
     };
 
     const submitForm = (e: React.FormEvent) => {
@@ -879,10 +1040,8 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
     return (
         <div className="fixed inset-0 z-[9990] bg-black/50 backdrop-blur-sm flex justify-center items-center p-4" onClick={onClose}>
             <div className="bg-white w-full max-w-md h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                {/* Header */}
                 <div className="p-4 border-b flex justify-between items-center bg-stone-50">
                     <div className="flex items-center gap-2">
-                        {/* Custom Face Icon without Circle (Small) */}
                          <div className="bg-black text-white p-1.5 rounded-full">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M8 14s1.5 2 4 2 4-2 4-2" />
@@ -895,7 +1054,6 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                     <button onClick={onClose} className="p-2 hover:bg-stone-200 rounded-full"><CloseIcon size={20}/></button>
                 </div>
 
-                {/* Chat Body */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50/50">
                     {messages.map((msg) => (
                         <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -918,7 +1076,6 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* FAQ Quick Chips - Modified to Wrap */}
                 <div className="p-4 bg-white border-t border-stone-100 max-h-40 overflow-y-auto">
                      <div className="flex flex-wrap gap-2 justify-center">
                         {content.faqs.map(f => (
@@ -936,7 +1093,6 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                      </div>
                 </div>
 
-                {/* Input Area */}
                 <div className="p-3 bg-white pb-6">
                     <form onSubmit={submitForm} className="relative flex items-center gap-2">
                         <input 
@@ -955,281 +1111,346 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
     );
 };
 
-// Admin Modal - iPhone Style UI with Comprehensive Management
-const AdminModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-    const { adminUser, loginAdmin, logoutAdmin, setAIContext, content, updateContent, updateCollectionItem, addCollectionItem, removeCollectionItem, reviews, deleteReview } = useAppContext();
-    const [ctx, setCtx] = useState(content.aiContext);
-    const [greeting, setGreeting] = useState({ ko: content.artistGreeting.ko, en: content.artistGreeting.en });
-    const [musicUrl, setMusicUrl] = useState(content.backgroundMusicUrl);
+// --- Full Screen Admin Dashboard ---
+const AdminDashboard: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    const { adminUser, loginAdmin, logoutAdmin, content, updateContent, updateCollectionItem, addCollectionItem, removeCollectionItem, reviews, deleteReview, addReview, updateReview, addPortfolioImage, removePortfolioImage, reorderPortfolioImages, schedule, toggleSlot, setAIContext, storageWarning, manualSave } = useAppContext();
     const [creds, setCreds] = useState({ id: '', pw: '' });
-    const [activeTab, setActiveTab] = useState<'main' | 'greeting' | 'faqs' | 'reviews' | 'gallery' | 'settings'>('main');
-    const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState('general');
+    
+    // Form States
+    const [newReview, setNewReview] = useState({ author: '', content: '', rating: 5, date: new Date().toISOString().split('T')[0], photos: [] as string[] });
+    const [draggedItem, setDraggedItem] = useState<{ type: string, index: number, albumId?: string } | null>(null);
 
-    // FAQ State
-    const [newFAQ, setNewFAQ] = useState({ q: { ko: '', en: '' }, a: { ko: '', en: '' } });
+    // File Upload Handler (Compressed)
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            compressImage(file).then(callback);
+        }
+    };
 
-    // Sync local greeting state with context content
-    useEffect(() => {
-        setGreeting({ ko: content.artistGreeting.ko, en: content.artistGreeting.en });
-    }, [content.artistGreeting]);
+    // Audio Upload Handler
+    const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 3 * 1024 * 1024) { // 3MB Limit
+                alert("File is too large (Max 3MB). Please upload a smaller file.");
+                e.target.value = ''; // Reset input
+                return;
+            }
+            convertFileToBase64(file)
+                .then(url => updateContent('backgroundMusicUrl', '', url))
+                .catch(() => alert("Failed to process audio file."));
+        }
+    };
+
+    // Common Input Style - Bright Yellow for Visibility
+    const inputStyle = "w-full p-2.5 rounded-lg border-2 border-yellow-200 bg-yellow-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent placeholder:text-yellow-700/40 transition font-medium";
+    const textareaStyle = "w-full p-2.5 rounded-lg border-2 border-yellow-200 bg-yellow-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none h-24 font-medium";
 
     if (!isOpen) return null;
 
+    if (!adminUser.isAuthenticated) {
+        return (
+            <div className="fixed inset-0 z-[9999] bg-white flex items-center justify-center p-4">
+                 <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full"><CloseIcon /></button>
+                 <div className="w-full max-w-sm space-y-6">
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-black text-white rounded-2xl mx-auto flex items-center justify-center mb-4"><Lock size={32}/></div>
+                        <h2 className="text-2xl font-bold">Admin Access</h2>
+                    </div>
+                    <input className="w-full p-4 bg-gray-50 rounded-xl border" placeholder="Email" onChange={e => setCreds({...creds, id: e.target.value})} />
+                    <input className="w-full p-4 bg-gray-50 rounded-xl border" type="password" placeholder="Password" onChange={e => setCreds({...creds, pw: e.target.value})} />
+                    <button onClick={() => { if(loginAdmin(creds.id, creds.pw)) setCreds({id:'',pw:''}); else alert('Invalid'); }} className="w-full p-4 bg-black text-white rounded-xl font-bold hover:scale-[1.02] transition">LOGIN</button>
+                 </div>
+            </div>
+        );
+    }
+
+    const NavItem = ({ id, icon: Icon, label }: any) => (
+        <button 
+            onClick={() => setActiveTab(id)} 
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition font-medium ${activeTab === id ? 'bg-black text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+        >
+            <Icon size={18} /> {label}
+        </button>
+    );
+
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/30 backdrop-blur-md transition-all animate-fade-in" onClick={onClose}>
-            <div className="w-full max-w-sm bg-white/70 backdrop-blur-2xl rounded-[32px] shadow-2xl overflow-hidden border border-white/40 animate-pop-in flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
-                
-                {/* Header */}
-                <div className="pt-6 pb-4 px-6 border-b border-gray-200/50 flex justify-between items-center bg-white/30 sticky top-0 z-10">
-                    <h2 className="text-xl font-semibold tracking-tight text-gray-900">
-                        {adminUser.isAuthenticated ? (activeTab === 'main' ? 'Control Center' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)) : 'Admin Access'}
-                    </h2>
-                    <button onClick={onClose} className="p-2 bg-gray-200/50 rounded-full text-gray-500 hover:bg-gray-300/50 transition">
-                        <CloseIcon size={18} />
-                    </button>
+        <div className="fixed inset-0 z-[9999] bg-gray-50 flex overflow-hidden">
+            {/* Sidebar */}
+            <div className="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
+                <div className="font-bold text-xl mb-8 px-4">SBH Admin</div>
+                <div className="space-y-1 flex-1">
+                    <NavItem id="general" icon={LayoutDashboard} label="General" />
+                    <NavItem id="portfolio" icon={ImageIcon} label="Portfolio" />
+                    <NavItem id="packages" icon={List} label="Packages" />
+                    <NavItem id="notices" icon={FileText} label="Notices" />
+                    <NavItem id="reviews" icon={Star} label="Reviews" />
+                    <NavItem id="schedule" icon={CalendarIcon} label="Schedule" />
+                    <NavItem id="settings" icon={Settings} label="Settings" />
                 </div>
+                {storageWarning && (
+                     <div className="px-4 py-3 mb-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2 animate-pulse">
+                        <AlertCircle size={16} /> 
+                        <div>
+                            <div>Storage Limit Reached!</div>
+                            <div className="font-normal text-[10px]">Changes are NOT saved. Delete photos.</div>
+                        </div>
+                     </div>
+                )}
+                
+                <button onClick={manualSave} className="flex items-center gap-2 px-4 py-3 text-blue-600 hover:bg-blue-50 rounded-xl mt-auto font-medium mb-2">
+                    <Save size={18} /> Save Changes
+                </button>
 
-                {/* Content */}
-                <div className="p-6 overflow-y-auto hide-scrollbar flex-1">
-                    {adminUser.isAuthenticated ? (
-                        <>
-                            {/* Navigation Tabs */}
-                            {activeTab !== 'main' && (
-                                <button onClick={() => setActiveTab('main')} className="mb-6 text-blue-500 font-medium flex items-center text-base hover:text-blue-600 transition">
-                                    <ChevronLeft size={20} className="mr-1" /> Back
-                                </button>
-                            )}
+                <button onClick={() => { logoutAdmin(); onClose(); }} className="flex items-center gap-2 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-medium">
+                    <LogOut size={18} /> Logout
+                </button>
+                <button onClick={onClose} className="flex items-center gap-2 px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-xl mt-2 font-medium">
+                    <CloseIcon size={18} /> Close
+                </button>
+            </div>
 
-                            {activeTab === 'main' && (
-                                <div className="space-y-4">
-                                    <div className="bg-white/60 rounded-2xl overflow-hidden shadow-sm border border-white/50">
-                                        <button onClick={() => setActiveTab('greeting')} className="w-full text-left px-5 py-4 flex justify-between items-center hover:bg-white/80 transition active:bg-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-orange-400 p-1.5 rounded-lg text-white"><MessageCircle size={16}/></div>
-                                                <span className="font-medium text-gray-900">Edit Greeting</span>
-                                            </div>
-                                            <ChevronRight size={18} className="text-gray-400" />
-                                        </button>
-                                        <div className="h-px bg-gray-200/50 mx-5" />
-                                        <button onClick={() => setActiveTab('gallery')} className="w-full text-left px-5 py-4 flex justify-between items-center hover:bg-white/80 transition active:bg-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-purple-500 p-1.5 rounded-lg text-white"><ImageIcon size={16}/></div>
-                                                <span className="font-medium text-gray-900">Manage Gallery</span>
-                                            </div>
-                                            <ChevronRight size={18} className="text-gray-400" />
-                                        </button>
-                                        <div className="h-px bg-gray-200/50 mx-5" />
-                                        <button onClick={() => setActiveTab('faqs')} className="w-full text-left px-5 py-4 flex justify-between items-center hover:bg-white/80 transition active:bg-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-blue-500 p-1.5 rounded-lg text-white"><HelpCircle size={16}/></div>
-                                                <span className="font-medium text-gray-900">Manage FAQs</span>
-                                            </div>
-                                            <ChevronRight size={18} className="text-gray-400" />
-                                        </button>
-                                        <div className="h-px bg-gray-200/50 mx-5" />
-                                        <button onClick={() => setActiveTab('reviews')} className="w-full text-left px-5 py-4 flex justify-between items-center hover:bg-white/80 transition active:bg-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-yellow-500 p-1.5 rounded-lg text-white"><Star size={16}/></div>
-                                                <span className="font-medium text-gray-900">Manage Reviews</span>
-                                            </div>
-                                            <ChevronRight size={18} className="text-gray-400" />
-                                        </button>
-                                    </div>
-
-                                    <div className="bg-white/60 rounded-2xl overflow-hidden shadow-sm border border-white/50">
-                                        <button onClick={() => { onClose(); navigate('/contact'); }} className="w-full text-left px-5 py-4 flex justify-between items-center hover:bg-white/80 transition active:bg-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-green-500 p-1.5 rounded-lg text-white"><CalendarIcon size={16}/></div>
-                                                <span className="font-medium text-gray-900">Manage Schedule</span>
-                                            </div>
-                                            <ChevronRight size={18} className="text-gray-400" />
-                                        </button>
-                                    </div>
-
-                                    <div className="bg-white/60 rounded-2xl overflow-hidden shadow-sm border border-white/50">
-                                        <button onClick={() => setActiveTab('settings')} className="w-full text-left px-5 py-4 flex justify-between items-center hover:bg-white/80 transition active:bg-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-gray-500 p-1.5 rounded-lg text-white"><Settings size={16}/></div>
-                                                <span className="font-medium text-gray-900">System Settings</span>
-                                            </div>
-                                            <ChevronRight size={18} className="text-gray-400" />
-                                        </button>
-                                    </div>
-
-                                    <button onClick={logoutAdmin} className="w-full h-12 bg-white rounded-2xl text-red-500 font-semibold text-base shadow-sm hover:bg-red-50 transition border border-red-100 mt-4">
-                                        Log Out
-                                    </button>
-                                </div>
-                            )}
-
-                            {activeTab === 'greeting' && (
-                                <div className="space-y-4 animate-slide-up">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1">Korean Greeting</label>
-                                        <textarea 
-                                            value={greeting.ko} 
-                                            onChange={e => setGreeting({...greeting, ko: e.target.value})}
-                                            className="w-full h-32 bg-white/60 p-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none border border-white/50" 
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1">English Greeting</label>
-                                        <textarea 
-                                            value={greeting.en} 
-                                            onChange={e => setGreeting({...greeting, en: e.target.value})}
-                                            className="w-full h-32 bg-white/60 p-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none border border-white/50" 
-                                        />
-                                    </div>
-                                    <button 
-                                        onClick={() => { updateContent('artistGreeting', '', greeting); alert('Saved'); }} 
-                                        className="w-full h-12 bg-blue-500 text-white rounded-2xl font-bold shadow-lg hover:bg-blue-600 transition"
-                                    >
-                                        Save Changes
-                                    </button>
-                                </div>
-                            )}
-
-                            {activeTab === 'gallery' && (
-                                <div className="space-y-4 animate-slide-up">
-                                    <div className="bg-blue-50 p-4 rounded-2xl text-xs text-blue-600 mb-4 leading-relaxed">
-                                        Note: To add or remove specific photos, please go to the <strong>Portfolio Page</strong> and click on the album title. This section creates/renames albums.
-                                    </div>
-                                    {content.portfolio.map((album) => (
-                                        <div key={album.id} className="bg-white/60 p-4 rounded-2xl space-y-2 border border-white/50">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className="text-xs font-bold text-gray-400 uppercase">{album.id}</span>
-                                            </div>
-                                            <input 
-                                                className="w-full bg-transparent border-b border-gray-200 text-sm font-bold pb-1 focus:outline-none focus:border-blue-500" 
-                                                value={album.title.ko} 
-                                                onChange={e => updateCollectionItem('portfolio', { ...album, title: { ...album.title, ko: e.target.value } })} 
-                                                placeholder="Title (KR)" 
-                                            />
-                                            <input 
-                                                className="w-full bg-transparent border-b border-gray-200 text-sm pb-1 text-gray-600 focus:outline-none focus:border-blue-500" 
-                                                value={album.title.en} 
-                                                onChange={e => updateCollectionItem('portfolio', { ...album, title: { ...album.title, en: e.target.value } })} 
-                                                placeholder="Title (EN)" 
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {activeTab === 'faqs' && (
-                                <div className="space-y-4 animate-slide-up pb-10">
-                                    {content.faqs.map((faq) => (
-                                        <div key={faq.id} className="bg-white/60 p-4 rounded-2xl space-y-2 relative group border border-white/50 hover:bg-white/80 transition">
-                                            <div className="grid grid-cols-1 gap-2">
-                                                <input className="bg-transparent border-b border-gray-200/50 text-sm font-bold pb-1 focus:outline-none" value={faq.q.ko} onChange={e => updateCollectionItem('faqs', { ...faq, q: { ...faq.q, ko: e.target.value } })} placeholder="Q (KR)" />
-                                                <input className="bg-transparent border-b border-gray-200/50 text-sm pb-1 text-gray-500 focus:outline-none" value={faq.q.en} onChange={e => updateCollectionItem('faqs', { ...faq, q: { ...faq.q, en: e.target.value } })} placeholder="Q (EN)" />
-                                                <textarea className="bg-transparent text-xs text-gray-700 resize-none h-16 border-b border-gray-200/50 focus:outline-none pt-1" value={faq.a.ko} onChange={e => updateCollectionItem('faqs', { ...faq, a: { ...faq.a, ko: e.target.value } })} placeholder="A (KR)" />
-                                                <textarea className="bg-transparent text-xs text-gray-500 resize-none h-16 focus:outline-none pt-1" value={faq.a.en} onChange={e => updateCollectionItem('faqs', { ...faq, a: { ...faq.a, en: e.target.value } })} placeholder="A (EN)" />
-                                            </div>
-                                            <button onClick={() => removeCollectionItem('faqs', faq.id)} className="absolute top-2 right-2 text-red-400 p-2 hover:bg-red-50 rounded-full"><MinusCircle size={16}/></button>
-                                        </div>
-                                    ))}
-                                    
-                                    <div className="bg-blue-50/80 p-4 rounded-2xl space-y-3 border border-blue-100">
-                                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Add New FAQ</p>
-                                        <input className="w-full bg-white px-3 py-2 rounded-xl text-sm border-none shadow-sm" placeholder="Question (KR)" value={newFAQ.q.ko} onChange={e => setNewFAQ({...newFAQ, q: {...newFAQ.q, ko: e.target.value}})} />
-                                        <input className="w-full bg-white px-3 py-2 rounded-xl text-sm border-none shadow-sm" placeholder="Answer (KR)" value={newFAQ.a.ko} onChange={e => setNewFAQ({...newFAQ, a: {...newFAQ.a, ko: e.target.value}})} />
-                                        <button 
-                                            onClick={() => {
-                                                if(newFAQ.q.ko) {
-                                                    addCollectionItem('faqs', { id: `f${Date.now()}`, q: newFAQ.q, a: newFAQ.a });
-                                                    setNewFAQ({ q: { ko: '', en: '' }, a: { ko: '', en: '' } });
-                                                }
-                                            }}
-                                            className="w-full py-3 bg-blue-500 text-white rounded-xl text-sm font-bold shadow-md hover:bg-blue-600 transition"
-                                        >
-                                            Add Item
-                                        </button>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-8">
+                <div className="max-w-4xl mx-auto space-y-8">
+                    {activeTab === 'general' && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold">General Content</h2>
+                            <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hero Subtitle</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <input className={inputStyle} value={content.heroSubtitle.ko} onChange={e => updateContent('heroSubtitle', 'ko', e.target.value)} placeholder="KR" />
+                                        <input className={inputStyle} value={content.heroSubtitle.en} onChange={e => updateContent('heroSubtitle', 'en', e.target.value)} placeholder="EN" />
                                     </div>
                                 </div>
-                            )}
-
-                            {activeTab === 'reviews' && (
-                                <div className="space-y-3 animate-slide-up">
-                                    <div className="bg-yellow-50 p-4 rounded-2xl text-xs text-yellow-700 mb-4 leading-relaxed">
-                                        To edit content, please modify the database directly. Here you can delete inappropriate reviews.
-                                    </div>
-                                    {reviews.map(r => (
-                                        <div key={r.id} className="bg-white/60 p-4 rounded-2xl flex justify-between items-center border border-white/50">
-                                            <div className="overflow-hidden">
-                                                <p className="font-bold text-sm text-gray-900">{r.author} <span className="text-xs font-normal text-gray-400">({r.date})</span></p>
-                                                <p className="text-xs text-gray-500 truncate w-48 mt-1">{r.content}</p>
-                                            </div>
-                                            <button onClick={() => deleteReview(r.id)} className="text-red-500 p-2 hover:bg-red-50 rounded-full transition shrink-0">
-                                                <MinusCircle size={20} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {activeTab === 'settings' && (
-                                <div className="space-y-6 animate-slide-up">
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">Background Music URL</label>
-                                        <input 
-                                            value={musicUrl} 
-                                            onChange={e => setMusicUrl(e.target.value)} 
-                                            className="w-full h-12 bg-white/60 px-4 rounded-2xl text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition border border-white/50" 
-                                            placeholder="https://..." 
-                                        />
-                                        <button onClick={() => { updateContent('backgroundMusicUrl', '', musicUrl); alert('Music Updated'); }} className="mt-2 w-full h-10 bg-gray-200/80 rounded-xl text-gray-700 font-semibold text-xs hover:bg-gray-300/80 transition">
-                                            Update Music
-                                        </button>
-                                    </div>
-
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase ml-1 mb-2 block">AI Context Prompt</label>
-                                        <textarea 
-                                            value={ctx} 
-                                            onChange={e => setCtx(e.target.value)} 
-                                            className="w-full h-32 bg-white/60 p-4 rounded-2xl text-xs leading-relaxed placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition resize-none border border-white/50" 
-                                            placeholder="Instructions for the AI..." 
-                                        />
-                                        <button onClick={() => { setAIContext(ctx); alert('Context Saved'); }} className="mt-2 w-full h-10 bg-gray-200/80 rounded-xl text-gray-700 font-semibold text-xs hover:bg-gray-300/80 transition">
-                                            Save Context
-                                        </button>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Artist Greeting</label>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <textarea className={textareaStyle} value={content.artistGreeting.ko} onChange={e => updateContent('artistGreeting', 'ko', e.target.value)} placeholder="KR" />
+                                        <textarea className={textareaStyle} value={content.artistGreeting.en} onChange={e => updateContent('artistGreeting', 'en', e.target.value)} placeholder="EN" />
                                     </div>
                                 </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="space-y-4 pt-10">
-                            <div className="text-center mb-8">
-                                <div className="w-20 h-20 bg-gray-100 rounded-full mx-auto flex items-center justify-center mb-4 shadow-inner">
-                                    <Lock size={32} className="text-gray-400" />
-                                </div>
-                                <p className="text-gray-500 text-sm">Please authenticate to continue</p>
                             </div>
-                            <input 
-                                placeholder="Email" 
-                                className="w-full h-14 bg-white/60 px-5 rounded-2xl text-base placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition border border-white/50"
-                                onChange={e => setCreds({ ...creds, id: e.target.value })} 
-                            />
-                            <input 
-                                type="password" 
-                                placeholder="Password" 
-                                className="w-full h-14 bg-white/60 px-5 rounded-2xl text-base placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition border border-white/50"
-                                onChange={e => setCreds({ ...creds, pw: e.target.value })} 
-                            />
-                            <button 
-                                onClick={() => { if (loginAdmin(creds.id, creds.pw)) setCreds({ id: '', pw: '' }); else alert('Invalid Credentials'); }} 
-                                className="w-full h-14 bg-[#007AFF] text-white rounded-2xl font-semibold text-lg shadow-xl shadow-blue-500/20 hover:bg-blue-600 transition mt-4 active:scale-[0.98]"
-                            >
-                                Login
-                            </button>
+                        </div>
+                    )}
+
+                    {activeTab === 'portfolio' && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold">Portfolio Management</h2>
+                            {content.portfolio.map(album => (
+                                <div key={album.id} className="bg-white p-6 rounded-2xl border shadow-sm">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-bold text-lg uppercase text-gray-400">{album.id}</h3>
+                                        <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-500">{album.images.length} Photos</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <input className={inputStyle} value={album.title.ko} onChange={e => updateCollectionItem('portfolio', {...album, title: {...album.title, ko: e.target.value}})} placeholder="Title KR" />
+                                        <input className={inputStyle} value={album.title.en} onChange={e => updateCollectionItem('portfolio', {...album, title: {...album.title, en: e.target.value}})} placeholder="Title EN" />
+                                    </div>
+                                    
+                                    <div className="mb-4">
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Manage Images (Drag to Reorder)</label>
+                                        <div className="grid grid-cols-4 md:grid-cols-6 gap-2 bg-gray-50 p-4 rounded-xl border border-gray-100 max-h-64 overflow-y-auto">
+                                            {album.images.map((img, idx) => (
+                                                <div 
+                                                    key={idx} 
+                                                    draggable
+                                                    onDragStart={() => setDraggedItem({ type: 'portfolio', index: idx, albumId: album.id })}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={() => {
+                                                        if (draggedItem?.type === 'portfolio' && draggedItem.albumId === album.id) {
+                                                            reorderPortfolioImages(album.id, draggedItem.index, idx);
+                                                            setDraggedItem(null);
+                                                        }
+                                                    }}
+                                                    className="relative aspect-square group rounded-lg overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing hover:shadow-lg transition-all"
+                                                >
+                                                    <img src={img} className="w-full h-full object-cover pointer-events-none" />
+                                                    <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition" />
+                                                    <button onClick={() => removePortfolioImage(album.id, idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition shadow-md z-10"><CloseIcon size={12}/></button>
+                                                </div>
+                                            ))}
+                                            <label className="relative aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-black hover:bg-gray-100 transition">
+                                                <Plus size={24} className="text-gray-400" />
+                                                <span className="text-[10px] font-bold text-gray-500 mt-1">ADD PHOTO</span>
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => addPortfolioImage(album.id, url))} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'packages' && (
+                        <div className="space-y-6">
+                             <h2 className="text-2xl font-bold">Packages</h2>
+                             {content.packages.map(pkg => (
+                                 <div key={pkg.id} className="bg-white p-6 rounded-2xl border shadow-sm space-y-3">
+                                     <div className="font-bold text-gray-400 uppercase text-xs">{pkg.id}</div>
+                                     <input className={inputStyle} value={pkg.title.ko} onChange={e => updateCollectionItem('packages', {...pkg, title: {...pkg.title, ko: e.target.value}})} />
+                                     <input className={inputStyle} value={pkg.price} onChange={e => updateCollectionItem('packages', {...pkg, price: e.target.value})} />
+                                     <div className="grid grid-cols-2 gap-4">
+                                         <textarea className={textareaStyle} value={pkg.features.ko.join('\n')} onChange={e => updateCollectionItem('packages', {...pkg, features: {...pkg.features, ko: e.target.value.split('\n')}})} />
+                                         <textarea className={textareaStyle} value={pkg.features.en.join('\n')} onChange={e => updateCollectionItem('packages', {...pkg, features: {...pkg.features, en: e.target.value.split('\n')}})} />
+                                     </div>
+                                 </div>
+                             ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'notices' && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold">Notices</h2>
+                            {content.notices.map(n => (
+                                <div key={n.id} className="bg-white p-6 rounded-2xl border shadow-sm space-y-3">
+                                    <input className={inputStyle} value={n.title.ko} onChange={e => updateCollectionItem('notices', {...n, title: {...n.title, ko: e.target.value}})} />
+                                    <textarea className={textareaStyle} value={n.description.ko} onChange={e => updateCollectionItem('notices', {...n, description: {...n.description, ko: e.target.value}})} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {activeTab === 'reviews' && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold">Reviews</h2>
+                            <div className="bg-white p-6 rounded-2xl border shadow-sm mb-6 bg-yellow-50/30">
+                                <h3 className="font-bold mb-4 flex items-center gap-2"><Plus size={18}/> Add New Review</h3>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <input className={inputStyle} placeholder="Author Name" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
+                                    <input className={inputStyle} type="date" value={newReview.date} onChange={e => setNewReview({...newReview, date: e.target.value})} />
+                                </div>
+                                <textarea className={textareaStyle} placeholder="Review Content" value={newReview.content} onChange={e => setNewReview({...newReview, content: e.target.value})} />
+                                
+                                <div className="mt-4 mb-4">
+                                    <div className="flex gap-2 items-center mb-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase">Photos attached:</label>
+                                        <label className="px-3 py-1 bg-black text-white text-xs font-bold rounded cursor-pointer hover:bg-stone-800 flex items-center gap-1">
+                                            <Upload size={12} /> Upload Photo
+                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => setNewReview(prev => ({...prev, photos: [...prev.photos, url]})))} />
+                                        </label>
+                                    </div>
+                                    <div className="flex gap-2 overflow-x-auto">
+                                        {newReview.photos.map((p, i) => (
+                                            <div key={i} className="relative w-16 h-16 shrink-0 group">
+                                                <img src={p} className="w-full h-full object-cover rounded border" />
+                                                <button onClick={() => setNewReview(prev => ({...prev, photos: prev.photos.filter((_, idx) => idx !== i)}))} className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-full"><CloseIcon size={10}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={() => {
+                                        addReview({ id: `r${Date.now()}`, email: 'admin@added', ...newReview });
+                                        setNewReview({ author: '', content: '', rating: 5, date: new Date().toISOString().split('T')[0], photos: [] });
+                                        alert('Review Added');
+                                    }}
+                                    className="w-full py-3 bg-black text-white rounded-xl font-bold hover:scale-[1.01] transition"
+                                >
+                                    Publish Review
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                {reviews.map(r => (
+                                    <div key={r.id} className="bg-white p-4 rounded-xl border space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="font-bold">{r.author} <span className="text-gray-400 font-normal text-sm">{r.date}</span></div>
+                                                <div className="text-sm text-gray-600 mt-1">{r.content}</div>
+                                            </div>
+                                            <button onClick={() => deleteReview(r.id)} className="text-red-500 hover:bg-red-50 p-2 rounded shrink-0"><Trash2 size={18}/></button>
+                                        </div>
+                                        {/* Existing Review Photos */}
+                                        {r.photos && r.photos.length > 0 && (
+                                            <div className="flex gap-2 overflow-x-auto pt-2 border-t border-dashed mt-2">
+                                                {r.photos.map((p, i) => (
+                                                    <div key={i} className="relative w-16 h-16 shrink-0 group">
+                                                        <img src={p} className="w-full h-full object-cover rounded border" />
+                                                        <button 
+                                                            onClick={() => updateReview({...r, photos: r.photos.filter((_, idx) => idx !== i)})} 
+                                                            className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition"
+                                                        >
+                                                            <CloseIcon size={10}/>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <label className="w-16 h-16 flex items-center justify-center border-2 border-dashed rounded cursor-pointer hover:bg-gray-50 shrink-0">
+                                                    <Plus size={16} className="text-gray-400"/>
+                                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => updateReview({...r, photos: [...r.photos, url]}))} />
+                                                </label>
+                                            </div>
+                                        )}
+                                        {(!r.photos || r.photos.length === 0) && (
+                                            <label className="text-xs text-blue-500 font-bold cursor-pointer hover:underline flex items-center gap-1">
+                                                <Plus size={12}/> Add Photos
+                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => updateReview({...r, photos: [...(r.photos || []), url]}))} />
+                                            </label>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'schedule' && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold">Schedule Manager</h2>
+                            <div className="bg-white p-6 rounded-2xl border shadow-sm">
+                                <CalendarView />
+                            </div>
+                        </div>
+                    )}
+                    
+                    {activeTab === 'settings' && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold">System Settings</h2>
+                            <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Background Music URL or File (MP3 / SoundCloud)</label>
+                                    <div className="flex flex-col gap-2">
+                                        <input className={inputStyle} value={content.backgroundMusicUrl} onChange={e => updateContent('backgroundMusicUrl', '', e.target.value)} placeholder="https://..." />
+                                        <label className="w-full flex items-center justify-center p-3 border-2 border-dashed border-yellow-300 rounded-lg bg-yellow-50/50 cursor-pointer hover:bg-yellow-100 transition">
+                                            <Music size={18} className="mr-2 text-yellow-700"/>
+                                            <span className="text-sm font-bold text-yellow-800">Upload MP3 (Max 3MB recommended)</span>
+                                            <input type="file" className="hidden" accept="audio/*" onChange={handleAudioUpload} />
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">AI Context (Rules)</label>
+                                    <textarea className={textareaStyle} value={content.aiContext} onChange={e => setAIContext(e.target.value)} />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <h3 className="text-xl font-bold">AI Interaction Logs</h3>
+                                <div className="bg-stone-900 rounded-2xl p-4 max-h-96 overflow-y-auto space-y-4">
+                                    {content.aiLogs && content.aiLogs.length > 0 ? content.aiLogs.map((log, i) => (
+                                        <div key={i} className="text-sm border-b border-stone-800 pb-4 last:border-0">
+                                            <div className="flex justify-between text-stone-500 text-xs mb-1">
+                                                <span>User Question</span>
+                                                <span>{log.timestamp}</span>
+                                            </div>
+                                            <div className="text-white font-medium mb-2">{log.question}</div>
+                                            <div className="text-green-400 text-xs mb-1">AI Answer</div>
+                                            <div className="text-stone-300 leading-relaxed">{log.answer}</div>
+                                        </div>
+                                    )) : (
+                                        <div className="text-stone-500 text-center py-8">No interactions recorded yet.</div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
         </div>
     );
-}
+};
 
 // Logic: Today resets at 07:00 KST. Increases by 1 every 23 mins from 07:00.
 // KST is UTC+9.
@@ -1343,7 +1564,7 @@ const AppContent: React.FC = () => {
                 <VisitorCounter />
             </footer>
 
-            <AdminModal isOpen={adminOpen} onClose={() => setAdminOpen(false)} />
+            <AdminDashboard isOpen={adminOpen} onClose={() => setAdminOpen(false)} />
             <FAQWidget isOpen={faqOpen} onClose={() => setFaqOpen(false)} />
             <AlbumDetail />
             <ImageViewer />

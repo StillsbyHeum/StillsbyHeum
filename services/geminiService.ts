@@ -1,9 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
-export const generateResponse = async (userPrompt: string, context: string) => {
+export const generateResponse = async (userPrompt: string, context: string, fullData?: any) => {
   try {
-    // Initialize API client lazily to avoid 'process is not defined' errors during initial bundle load
-    // This is critical for static deployments where process.env might not be polyfilled globally
     const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
     
     if (!apiKey) {
@@ -13,20 +11,31 @@ export const generateResponse = async (userPrompt: string, context: string) => {
 
     const ai = new GoogleGenAI({ apiKey });
 
+    // Construct a rich context from the full data object if provided
+    let richContext = context;
+    if (fullData) {
+        richContext += `\n\n[Detailed Website Data]\n`;
+        richContext += `Packages: ${JSON.stringify(fullData.packages)}\n`;
+        richContext += `FAQs: ${JSON.stringify(fullData.faqs)}\n`;
+        richContext += `Notices: ${JSON.stringify(fullData.notices)}\n`;
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `
-        You are Heum's AI Assistant for the photography studio "Stills by Heum".
+        You are Heum's intelligent AI Manager for "Stills by Heum".
         
-        Context about the studio:
-        ${context}
+        **Core Knowledge Base:**
+        ${richContext}
         
-        **Instructions for response:**
-        1. Role: You are a warm, kind, and professional studio manager welcoming a guest.
-        2. Tone: Use polite, honorific Korean (존댓말 - '해요'체 mostly) appropriate for a friendly face-to-face consultation. The tone should be gentle (상냥한), empathetic, and inviting.
-        3. Be concise but warm. Avoid being robotic.
-        4. Detect the user's language and reply in the same language. If Korean, use the specified warm tone.
-        
+        **Directives:**
+        1. **Role:** Professional Studio Manager. Helpful, polite, and precise.
+        2. **Accuracy:** Use the [Detailed Website Data] to answer specific questions about prices, time limits, and policies. Do not hallucinate prices.
+        3. **Correction:** If the user asks something wrong (e.g., "Can I book for $10?"), politely correct them with the actual price from the data.
+        4. **Language:** Reply in the same language as the User Question (Korean or English).
+        5. **Tone:** Professional Korean ('해요'체) or Polite English.
+        6. **Length:** Keep it concise (1-3 sentences) unless listing packages.
+
         User Question: ${userPrompt}
       `,
     });

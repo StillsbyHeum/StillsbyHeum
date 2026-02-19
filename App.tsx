@@ -15,7 +15,7 @@ interface AppContextType {
   schedule: Record<string, DaySchedule>;
   toggleSlot: (date: string, slotId: string, action: 'book' | 'block', details?: any) => void;
   adminUser: AdminUser;
-  loginAdmin: (email: string, password?: string) => boolean;
+  loginAdmin: () => void; // Changed signature: no arguments needed
   logoutAdmin: () => void;
   galleryFilter: string;
   setGalleryFilter: (id: string) => void;
@@ -1427,8 +1427,6 @@ const ReviewsPage: React.FC = () => {
 
 const AdminPage: React.FC = () => {
     const { adminUser, loginAdmin, logoutAdmin, content, updateContent } = useAppContext();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [activeTab, setActiveTab] = useState<'content' | 'images' | 'meeting'>('content');
 
     if (!adminUser.isAuthenticated) {
@@ -1437,23 +1435,17 @@ const AdminPage: React.FC = () => {
                 <div className="glass-panel p-10 rounded-3xl w-full max-w-md text-center">
                     <Lock size={40} className="mx-auto mb-6 text-stone-400" />
                     <h2 className="text-2xl font-bold mb-6">Admin Access</h2>
-                    <form onSubmit={(e) => { e.preventDefault(); if(!loginAdmin(email, password)) alert("Invalid Access"); }}>
-                        <input 
-                            type="email" 
-                            className="w-full p-4 rounded-xl border border-stone-200 mb-4" 
-                            placeholder="Enter Admin Email"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                        />
-                         <input 
-                            type="password" 
-                            className="w-full p-4 rounded-xl border border-stone-200 mb-4" 
-                            placeholder="Enter Password"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                        />
-                        <button type="submit" className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold uppercase tracking-widest">Login</button>
-                    </form>
+                    <p className="text-stone-500 mb-8 text-sm">관리자 계정으로 로그인해주세요.</p>
+                    
+                    <button 
+                        onClick={loginAdmin}
+                        className="w-full bg-white border border-stone-300 text-stone-700 py-4 rounded-xl font-bold shadow-sm hover:bg-stone-50 transition flex items-center justify-center gap-3"
+                    >
+                         <div className="w-5 h-5 flex items-center justify-center">
+                            <span className="font-bold text-blue-500 text-lg">G</span>
+                        </div>
+                        구글 계정으로 계속하기
+                    </button>
                 </div>
             </div>
         );
@@ -1751,12 +1743,9 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         });
     };
 
-    const loginAdmin = (email: string, password?: string) => {
-        if (email === 'maiminimum9@gmail.com' && password === '0629') {
-            setAdminUser({ email, isAuthenticated: true });
-            return true;
-        }
-        return false;
+    const loginAdmin = () => {
+        // Direct simulation of Google Login Success
+        setAdminUser({ email: 'heum@stills.com', isAuthenticated: true });
     };
     const logoutAdmin = () => setAdminUser({ email: '', isAuthenticated: false });
     const addReview = (review: Review) => setReviews(prev => [review, ...prev]);

@@ -10,12 +10,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@200;300;400;500&family=Outfit:wght@100;200;300;400;500;600;700&family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
+      html, body {
+        width: 100%;
+        min-height: 100vh;
+        margin: 0;
+        padding: 0;
+      }
       body {
         font-family: 'Nanum Gothic', sans-serif;
-        background-color: #e6e6e6; /* Light Grey */
-        min-height: 100vh;
+        background-color: #ffffff;
         position: relative;
-        overscroll-behavior-y: none; /* Helps with the 'bounce' feel on compatible browsers */
+        overscroll-behavior-y: none;
       }
       .font-serif-kr {
         font-family: 'Noto Serif KR', serif;
@@ -24,75 +29,10 @@
         font-family: 'Outfit', sans-serif;
       }
       
-      /* --- Real Film / E-book Grain Texture --- */
-      @keyframes grain {
-        0%, 100% { transform:translate(0, 0); }
-        10% { transform:translate(-5%, -10%); }
-        20% { transform:translate(-15%, 5%); }
-        30% { transform:translate(7%, -25%); }
-        40% { transform:translate(-5%, 25%); }
-        50% { transform:translate(-15%, 10%); }
-        60% { transform:translate(15%, 0%); }
-        70% { transform:translate(0%, 15%); }
-        80% { transform:translate(3%, 35%); }
-        90% { transform:translate(-10%, 10%); }
-      }
-
-      /* Moving Film Grain - Top Layer */
-      .film-grain {
-        position: fixed;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        pointer-events: none;
-        z-index: 999999; /* Topmost layer */
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E");
-        opacity: 0.15;
-        mix-blend-mode: overlay; /* Blends with photos nicely */
-        animation: grain 8s steps(10) infinite;
-      }
-
-      /* Static Paper Texture - Second Layer */
-      .paper-texture {
-        position: fixed;
-        inset: 0;
-        z-index: 999998; /* Just below grain */
-        pointer-events: none;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paperNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paperNoise)' opacity='1'/%3E%3C/svg%3E");
-        opacity: 0.3; 
-        mix-blend-mode: multiply; /* Darkens to create paper fiber look */
-        background-color: rgba(255, 250, 240, 0.05); /* Very slight warm tint */
-      }
-
-      /* Cotton Candy / Galaxy Awesome White Glow */
-      .hover-glow-dream {
-        transition: all 0.5s ease;
-      }
-      .hover-glow-dream:hover {
-        background: linear-gradient(135deg, #fff0f5 0%, #ffffff 40%, #e6e6fa 100%);
-        box-shadow: 
-          0 0 20px rgba(255, 200, 255, 0.4),
-          0 0 40px rgba(200, 230, 255, 0.3),
-          inset 0 0 20px rgba(255, 255, 255, 0.8);
-        border-color: rgba(255, 255, 255, 0.8);
-        transform: scale(1.02);
-        z-index: 10;
-      }
-
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
-        width: 0px; /* Hidden scrollbar */
+        width: 0px;
         background: transparent;
-      }
-      
-      /* Glassmorphism Utilities */
-      .glass-panel {
-        background: rgba(255, 255, 255, 0.65);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
       }
       
       /* Animations */
@@ -128,47 +68,13 @@
         animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       }
 
-      /* Connected Slide Animations (Carousel Feel) - Slower and Smoother */
-      @keyframes slideInRight {
-        0% { transform: translateX(100%); opacity: 0; }
-        100% { transform: translateX(0); opacity: 1; }
-      }
-      .animate-slide-in-right {
-        animation: slideInRight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
-
-      @keyframes slideInLeft {
-        0% { transform: translateX(-100%); opacity: 0; }
-        100% { transform: translateX(0); opacity: 1; }
-      }
-      .animate-slide-in-left {
-        animation: slideInLeft 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
-
-      /* Vertical Calendar Slide Animations */
-      @keyframes slideInDown {
-        0% { transform: translateY(-100%); opacity: 0; }
-        100% { transform: translateY(0); opacity: 1; }
-      }
-      .animate-slide-in-down {
-        animation: slideInDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
-
-      @keyframes slideInUp {
-        0% { transform: translateY(100%); opacity: 0; }
-        100% { transform: translateY(0); opacity: 1; }
-      }
-      .animate-slide-in-up {
-        animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
-
       /* Infinite Marquee Animation */
       @keyframes marquee {
         0% { transform: translateX(0); }
         100% { transform: translateX(-50%); }
       }
       .animate-marquee {
-        animation: marquee 30s linear infinite;
+        animation: marquee 40s linear infinite;
       }
       
       /* Menu Stagger Animation */
@@ -186,33 +92,13 @@
       .animate-pulse-glow {
         animation: pulse-glow 1.5s ease-in-out infinite;
       }
-
-      /* Bouncy Cute Animation - More pronounced for "Today" button */
-      @keyframes bounceCustom {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50% { transform: translateY(-4px) scale(1.05); }
-      }
-      .animate-bounce-custom {
-        animation: bounceCustom 1.5s infinite ease-in-out;
-      }
-
-      /* iOS Style Splash Transitions */
-      @keyframes iosFadeOut {
-        0% { opacity: 1; backdrop-filter: blur(0px); }
-        100% { opacity: 0; backdrop-filter: blur(0px); visibility: hidden; }
-      }
       
-      @keyframes iosScaleIn {
-        0% { transform: scale(0.92); opacity: 0; filter: blur(5px); }
-        100% { transform: scale(1); opacity: 1; filter: blur(0px); }
+      .hide-scrollbar::-webkit-scrollbar {
+          display: none;
       }
-
-      .animate-ios-fade-out {
-        animation: iosFadeOut 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-      }
-      
-      .animate-ios-scale-in {
-        animation: iosScaleIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
       }
 
     </style>
@@ -229,7 +115,7 @@
 }
 </script>
 </head>
-  <body class="bg-grain">
+  <body>
     <div id="root" class="relative z-10"></div>
     <script type="module" src="./index.tsx"></script>
   </body>

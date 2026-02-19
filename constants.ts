@@ -47,11 +47,9 @@ export const NOTICES: NoticeItem[] = [
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
-  { id: 'portfolio', ko: '포트폴리오', en: 'Portfolio' },
-  { id: 'packages', ko: '촬영구성', en: 'Packages' },
-  { id: 'meeting-points', ko: '미팅장소', en: 'Location' },
-  { id: 'reviews', ko: '후기', en: 'Reviews' },
-  { id: 'notices', ko: '이용안내', en: 'Guide' }
+  { id: '/', ko: '포트폴리오', en: 'Portfolio' },
+  { id: '/info', ko: '촬영안내', en: 'Info' },
+  { id: '/contact', ko: '예약하기', en: 'Reservation' }
 ];
 
 export const PACKAGES: PackageItem[] = [
@@ -96,8 +94,7 @@ export const PACKAGES: PackageItem[] = [
       ko: ["180분 촬영", "원본 전체 (24시간 내)", "정밀 보정 60장 (셀렉45+작가15)", "폴라로이드 5장 현장 제공"],
       en: ["180 min Session", "All Originals (24h)", "60 Retouched (45 Select + 15 Pro)", "5 Polaroids on-site"]
     },
-    // Updated: Default Cotton Candy texture, Dark Text for visibility
-    color: "bg-cotton-candy text-stone-900 border border-purple-100 shadow-md",
+    color: "bg-pink-50 text-stone-900 border border-pink-100",
     image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop"
   }
 ];
@@ -212,17 +209,6 @@ export const INITIAL_CONTENT: ContentData = {
       ]
     },
     {
-      id: 'family',
-      title: { ko: "가족 사진", en: "Family" },
-      cover: "https://images.unsplash.com/photo-1542038782534-3675a4879a96?q=80&w=800&auto=format&fit=crop",
-      images: [
-        "https://images.unsplash.com/photo-1542038782534-3675a4879a96?q=80&w=800&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1609220136736-443140cffec6?q=80&w=800&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1591115765373-5207764f72e7?q=80&w=800&auto=format&fit=crop"
-      ]
-    },
-    {
       id: 'event',
       title: { ko: "행사 및 졸업식", en: "Event & Graduation" },
       cover: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?q=80&w=800&auto=format&fit=crop",
@@ -297,7 +283,7 @@ export const INITIAL_CONTENT: ContentData = {
 };
 
 export const DEFAULT_SLOTS = [
-  "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
+  "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"
 ];
 
 export const INITIAL_REVIEWS: Review[] = [

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 export const generateResponse = async (userPrompt: string, context: string) => {
@@ -23,10 +22,10 @@ export const generateResponse = async (userPrompt: string, context: string) => {
         ${context}
         
         **Instructions for response:**
-        1. Be extremely minimal, concise, and clear. 
-        2. Do NOT use markdown symbols like bolding (**), italics, or headers. Just plain text.
-        3. Do NOT be overly emotional, abstract, or rude. Be sharp and professional.
-        4. Detect the user's language and reply in the same language.
+        1. Role: You are a warm, kind, and professional studio manager welcoming a guest.
+        2. Tone: Use polite, honorific Korean (존댓말 - '해요'체 mostly) appropriate for a friendly face-to-face consultation. The tone should be gentle (상냥한), empathetic, and inviting.
+        3. Be concise but warm. Avoid being robotic.
+        4. Detect the user's language and reply in the same language. If Korean, use the specified warm tone.
         
         User Question: ${userPrompt}
       `,

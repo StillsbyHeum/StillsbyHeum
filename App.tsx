@@ -239,11 +239,15 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // 1. Cleanup
     if (audioRef.current) {
         audioRef.current.pause();
+        audioRef.current.src = ""; // Clear src to stop loading/playing
+        audioRef.current.load();
         audioRef.current = null;
     }
     
     // 2. Setup
-    const rawUrl = content.backgroundMusicUrl || "";
+    // CRITICAL FIX: Always use INITIAL_CONTENT.backgroundMusicUrl to ensure the valid Jazz track is used.
+    // ignoring potentially broken URLs saved in content (localStorage) as user requested not to edit manually.
+    const rawUrl = INITIAL_CONTENT.backgroundMusicUrl;
     const isSC = rawUrl.includes("soundcloud.com");
     setIsSoundCloud(isSC);
     setIsPlaying(false);
@@ -259,11 +263,16 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             const audio = new Audio(rawUrl);
             audio.loop = true;
             audio.volume = 0.5;
+            // Add error listener to prevent "The element has no supported sources" logging as uncaught
+            audio.addEventListener('error', (e) => {
+                console.warn("Audio play error", audio.error);
+                setIsPlaying(false);
+            });
             audioRef.current = audio;
             tryPlay();
         }
     }
-  }, [content.backgroundMusicUrl]); 
+  }, []); // Run once on mount (ignoring content.backgroundMusicUrl changes)
 
   // SC Widget Setup
   useEffect(() => {
@@ -438,7 +447,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <AppContext.Provider value={{
       language, setLanguage, content, updateContent, updateCollectionItem, addCollectionItem, removeCollectionItem,
       schedule, toggleSlot, adminUser, loginAdmin, logoutAdmin,
-      reviews, addReview, deleteReview, updateReview,
+      reviews: Array.isArray(reviews) ? reviews : [],
+      addReview, deleteReview, updateReview,
       addPortfolioImage, removePortfolioImage, reorderPortfolioImages,
       setAIContext, logAIInteraction, isPlaying, toggleAudio, requestBooking,
       selectedAlbum, setSelectedAlbum,
@@ -546,7 +556,7 @@ const HeroSection: React.FC = () => {
                 </div>
             </div>
         </div>
-        <div className="absolute bottom-0 left-0 w-full h-64 bg-gradient-to-t from-white via-white/80 to-transparent z-10 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-full h-[40vh] bg-gradient-to-t from-white via-white/90 to-transparent z-10 pointer-events-none" />
     </section>
   );
 };
@@ -1409,17 +1419,7 @@ const AdminDashboard: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ is
                         <div className="space-y-6">
                             <h2 className="text-2xl font-bold">System Settings</h2>
                             <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Background Music URL or File (MP3 / SoundCloud)</label>
-                                    <div className="flex flex-col gap-2">
-                                        <input className={inputStyle} value={content.backgroundMusicUrl} onChange={e => updateContent('backgroundMusicUrl', '', e.target.value)} placeholder="https://..." />
-                                        <label className="w-full flex items-center justify-center p-3 border-2 border-dashed border-yellow-300 rounded-lg bg-yellow-50/50 cursor-pointer hover:bg-yellow-100 transition">
-                                            <Music size={18} className="mr-2 text-yellow-700"/>
-                                            <span className="text-sm font-bold text-yellow-800">Upload MP3 (Max 3MB recommended)</span>
-                                            <input type="file" className="hidden" accept="audio/*" onChange={handleAudioUpload} />
-                                        </label>
-                                    </div>
-                                </div>
+                                {/* REMOVED BACKGROUND MUSIC SETTINGS AS REQUESTED */}
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">AI Context (Rules)</label>
                                     <textarea className={textareaStyle} value={content.aiContext} onChange={e => setAIContext(e.target.value)} />

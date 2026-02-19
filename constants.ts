@@ -1,4 +1,3 @@
-
 import { ContentData, PackageItem, NoticeItem, Review, MenuItem } from './types';
 
 // Admin Credentials (Obfuscated / Base64 Encoded)
@@ -242,8 +241,8 @@ export const INITIAL_CONTENT: ContentData = {
       a: { ko: "원본 24시간 내, 보정본은 셀렉 후 30일 이내 제공됩니다.", en: "Originals within 24h, Retouched photos within 30 days of selection." }
     }
   ],
-  // Changed to a standard MP3 for better autoplay reliability as requested.
-  backgroundMusicUrl: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=relaxing-mountains-rivers-streams-running-water-18178.mp3",
+  // UPDATED: Reliable Jazz Track (Pixabay)
+  backgroundMusicUrl: "https://cdn.pixabay.com/audio/2022/11/02/audio_65191833b7.mp3",
   meetingPoints: [
       {
           id: 'tower',

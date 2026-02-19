@@ -11,6 +11,10 @@ export const INITIAL_CONTENT: ContentData = {
     ko: "가장 아름다운 순간을 영원히 기록합니다.",
     en: "Recording your most beautiful moments forever."
   },
+  artistGreeting: {
+    ko: "안녕하세요, 흠입니다. 찰나의 순간을 영원으로 남겨드립니다.",
+    en: "Hello, I am Heum. Capturing fleeting moments into eternity."
+  },
   worksTitle: {
     ko: "포트폴리오",
     en: "Portfolio"

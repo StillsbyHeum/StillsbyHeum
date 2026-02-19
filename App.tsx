@@ -15,15 +15,17 @@ interface AppContextType {
   schedule: Record<string, DaySchedule>;
   toggleSlot: (date: string, slotId: string, action: 'book' | 'block', details?: any) => void;
   adminUser: AdminUser;
-  loginAdmin: () => void; // Changed signature: no arguments needed
+  loginAdmin: (email: string, password?: string) => boolean; // Restored signature for security
   logoutAdmin: () => void;
   galleryFilter: string;
   setGalleryFilter: (id: string) => void;
   reviews: Review[];
   addReview: (review: Review) => void;
   deleteReview: (id: string) => void;
+  updateReview: (review: Review) => void; // Added updateReview
   addPortfolioAlbum: (album: PortfolioAlbum) => void;
   addPortfolioImage: (albumId: string, imageUrl: string) => void;
+  removePortfolioImage: (albumId: string, imageIndex: number) => void; // Added removePortfolioImage
   addFAQ: (faq: FAQItem) => void;
   updateFAQ: (faq: FAQItem) => void;
   deleteFAQ: (id: string) => void;
@@ -342,6 +344,7 @@ const CalendarView: React.FC<{
                 const dayNum = d.getDate();
                 const isSelected = selectedDate === date;
                 const isPastDate = date < todayStr;
+                const isSunday = d.getDay() === 0; // Check if it's Sunday
                 
                 return (
                   <button 
@@ -352,13 +355,14 @@ const CalendarView: React.FC<{
                         setShowLoginSelection(false);
                     }}
                     disabled={isPastDate && !isAdmin}
-                    className={`flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 ${
+                    className={`flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 relative ${
                       isSelected ? 'bg-black text-white shadow-lg scale-105 z-10' : 
                       isPastDate && !isAdmin ? 'text-stone-300 cursor-not-allowed blur-[1px]' : 'bg-transparent text-stone-500 hover:bg-stone-200'
                     }`}
                   >
-                    <span className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'opacity-100' : 'opacity-60'}`}>{dayName}</span>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'opacity-100' : 'opacity-60'} ${isSunday && !isSelected ? 'text-red-400' : ''}`}>{dayName}</span>
                     <span className="text-lg font-medium leading-none mt-1">{dayNum}</span>
+                    {isSunday && !isSelected && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-red-400"></div>}
                   </button>
                 )
               })}
@@ -409,13 +413,19 @@ const CalendarView: React.FC<{
           const targetDateTime = new Date(`${selectedDate}T${time}`);
           const isPastTime = targetDateTime < now;
           
+          // Sunday Logic: Always Closed/Full
+          const isSunday = new Date(selectedDate).getDay() === 0;
+
           let btnClass = "bg-white/80 border border-stone-200 text-stone-800 hover:border-stone-400 hover:shadow-md";
           
           if (isAdmin) {
              if (isBlocked) btnClass = "bg-red-50 text-red-500 border-red-200 hover:bg-red-100";
              else btnClass = "border-2 border-blue-200 hover:bg-blue-50 text-blue-900";
           } else {
-             if (isBlocked || isPastTime) {
+             if (isSunday) {
+                 btnClass = "bg-red-50/50 text-red-300 cursor-not-allowed border-transparent opacity-80";
+             }
+             else if (isBlocked || isPastTime) {
                  btnClass = "bg-stone-100/50 text-stone-300 cursor-not-allowed border-transparent blur-[1px] opacity-60";
              }
              else if (isSelected) {
@@ -426,7 +436,7 @@ const CalendarView: React.FC<{
           return (
             <button
               key={time}
-              disabled={!isAdmin && (isBlocked || isPastTime)}
+              disabled={!isAdmin && (isBlocked || isPastTime || isSunday)}
               onClick={() => handleSlotClick(time, isBooked, isBlocked, isPastTime)}
               className={`relative py-3 rounded-xl text-sm font-medium transition duration-200 flex items-center justify-center gap-1 ${btnClass}`}
             >
@@ -438,6 +448,8 @@ const CalendarView: React.FC<{
                       {count}
                   </span>
               )}
+              {/* Sunday Label for User */}
+              {!isAdmin && isSunday && <span className="absolute inset-0 flex items-center justify-center bg-red-50/80 text-red-400 text-[10px] font-bold">FULL</span>}
             </button>
           );
         })}
@@ -861,9 +873,7 @@ const PortfolioHomeSection: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 md:mb-12">
             <div className="text-center">
                 <p className="text-xs md:text-sm font-medium text-stone-500 uppercase tracking-widest leading-loose whitespace-pre-wrap break-words max-w-2xl mx-auto">
-                    {language === 'ko' 
-                        ? "안녕하세요, 흠입니다. 찰나의 순간을 영원으로 남겨드립니다." 
-                        : "Hello, I am Heum. Capturing fleeting moments into eternity."}
+                    {language === 'ko' ? content.artistGreeting.ko : content.artistGreeting.en}
                 </p>
             </div>
         </div>
@@ -1426,8 +1436,26 @@ const ReviewsPage: React.FC = () => {
 // --- Admin Page ---
 
 const AdminPage: React.FC = () => {
-    const { adminUser, loginAdmin, logoutAdmin, content, updateContent } = useAppContext();
-    const [activeTab, setActiveTab] = useState<'content' | 'images' | 'meeting'>('content');
+    const { 
+        adminUser, loginAdmin, logoutAdmin, content, updateContent, 
+        reviews, addReview, deleteReview, updateReview,
+        addPortfolioImage, removePortfolioImage 
+    } = useAppContext();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [activeTab, setActiveTab] = useState<'content' | 'images' | 'reviews' | 'meeting'>('content');
+    const [editLang, setEditLang] = useState<'ko' | 'en'>('ko');
+    
+    // States for adding new items
+    const [newReviewForm, setNewReviewForm] = useState<Partial<Review>>({});
+    const [imageInput, setImageInput] = useState<string>("");
+
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!loginAdmin(email, password)) {
+            // Error handling managed in context
+        }
+    };
 
     if (!adminUser.isAuthenticated) {
         return (
@@ -1437,15 +1465,30 @@ const AdminPage: React.FC = () => {
                     <h2 className="text-2xl font-bold mb-6">Admin Access</h2>
                     <p className="text-stone-500 mb-8 text-sm">관리자 계정으로 로그인해주세요.</p>
                     
-                    <button 
-                        onClick={loginAdmin}
-                        className="w-full bg-white border border-stone-300 text-stone-700 py-4 rounded-xl font-bold shadow-sm hover:bg-stone-50 transition flex items-center justify-center gap-3"
-                    >
-                         <div className="w-5 h-5 flex items-center justify-center">
-                            <span className="font-bold text-blue-500 text-lg">G</span>
-                        </div>
-                        구글 계정으로 계속하기
-                    </button>
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <input 
+                            type="email" 
+                            placeholder="Email" 
+                            className="w-full bg-white/50 p-4 rounded-xl border border-stone-200 text-sm outline-none focus:border-black transition"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                        <input 
+                            type="password" 
+                            placeholder="Password" 
+                            className="w-full bg-white/50 p-4 rounded-xl border border-stone-200 text-sm outline-none focus:border-black transition"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
+                        <button 
+                            type="submit"
+                            className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-black transition uppercase tracking-widest text-xs mt-4"
+                        >
+                            Login
+                        </button>
+                    </form>
                 </div>
             </div>
         );
@@ -1455,40 +1498,64 @@ const AdminPage: React.FC = () => {
         <div className="min-h-screen pt-32 pb-20 px-4 max-w-7xl mx-auto">
              <div className="flex justify-between items-center mb-10">
                 <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-                <button onClick={logoutAdmin} className="flex items-center gap-2 text-red-500 font-bold uppercase text-xs"><LogOut size={16}/> Logout</button>
+                <div className="flex gap-4 items-center">
+                    {/* Language Toggle for Admin Editing */}
+                    <div className="flex bg-white rounded-full p-1 border border-stone-200">
+                        <button 
+                            onClick={() => setEditLang('ko')}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition ${editLang === 'ko' ? 'bg-black text-white' : 'text-stone-500'}`}
+                        >
+                            한국어 편집
+                        </button>
+                        <button 
+                             onClick={() => setEditLang('en')}
+                             className={`px-4 py-2 rounded-full text-xs font-bold transition ${editLang === 'en' ? 'bg-black text-white' : 'text-stone-500'}`}
+                        >
+                            English Edit
+                        </button>
+                    </div>
+                    <button onClick={logoutAdmin} className="flex items-center gap-2 text-red-500 font-bold uppercase text-xs"><LogOut size={16}/> Logout</button>
+                </div>
              </div>
 
-             <div className="flex gap-4 mb-8">
+             <div className="flex gap-4 mb-8 flex-wrap">
                  <button onClick={() => setActiveTab('content')} className={`px-6 py-2 rounded-full font-bold text-xs uppercase ${activeTab === 'content' ? 'bg-black text-white' : 'bg-white text-stone-500'}`}>Text Content</button>
-                 <button onClick={() => setActiveTab('images')} className={`px-6 py-2 rounded-full font-bold text-xs uppercase ${activeTab === 'images' ? 'bg-black text-white' : 'bg-white text-stone-500'}`}>Images</button>
+                 <button onClick={() => setActiveTab('images')} className={`px-6 py-2 rounded-full font-bold text-xs uppercase ${activeTab === 'images' ? 'bg-black text-white' : 'bg-white text-stone-500'}`}>Gallery Images</button>
+                 <button onClick={() => setActiveTab('reviews')} className={`px-6 py-2 rounded-full font-bold text-xs uppercase ${activeTab === 'reviews' ? 'bg-black text-white' : 'bg-white text-stone-500'}`}>Review Mgmt</button>
                  <button onClick={() => setActiveTab('meeting')} className={`px-6 py-2 rounded-full font-bold text-xs uppercase ${activeTab === 'meeting' ? 'bg-black text-white' : 'bg-white text-stone-500'}`}>Meeting Points</button>
              </div>
 
              {activeTab === 'content' && (
                  <div className="grid gap-6">
                      <div className="glass-panel p-6 rounded-2xl">
-                         <h3 className="font-bold mb-4">Hero Section</h3>
+                         <h3 className="font-bold mb-4 flex items-center gap-2">
+                             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                             Main Texts ({editLang === 'ko' ? '한국어' : 'English'})
+                         </h3>
                          <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-bold text-stone-400 mb-1">Title (KO)</label>
-                                <input className="w-full p-2 border rounded" value={content.heroTitle.ko} onChange={e => updateContent('heroTitle', 'ko', e.target.value)} />
+                                <label className="block text-xs font-bold text-stone-400 mb-1">Hero Title</label>
+                                <input className="w-full p-2 border rounded" value={content.heroTitle[editLang]} onChange={e => updateContent('heroTitle', editLang, e.target.value)} />
+                            </div>
+                             <div>
+                                <label className="block text-xs font-bold text-stone-400 mb-1">Hero Subtitle</label>
+                                <input className="w-full p-2 border rounded" value={content.heroSubtitle[editLang]} onChange={e => updateContent('heroSubtitle', editLang, e.target.value)} />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-stone-400 mb-1">Title (EN)</label>
-                                <input className="w-full p-2 border rounded" value={content.heroTitle.en} onChange={e => updateContent('heroTitle', 'en', e.target.value)} />
-                            </div>
-                         </div>
-                     </div>
-                      <div className="glass-panel p-6 rounded-2xl">
-                         <h3 className="font-bold mb-4">Pricing Title</h3>
-                         <div className="grid md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-stone-400 mb-1">Title (KO)</label>
-                                <input className="w-full p-2 border rounded" value={content.pricingTitle.ko} onChange={e => updateContent('pricingTitle', 'ko', e.target.value)} />
+                                <label className="block text-xs font-bold text-stone-400 mb-1">Artist Greeting (Home)</label>
+                                <textarea className="w-full p-2 border rounded h-20" value={content.artistGreeting[editLang]} onChange={e => updateContent('artistGreeting', editLang, e.target.value)} />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-stone-400 mb-1">Title (EN)</label>
-                                <input className="w-full p-2 border rounded" value={content.pricingTitle.en} onChange={e => updateContent('pricingTitle', 'en', e.target.value)} />
+                                <label className="block text-xs font-bold text-stone-400 mb-1">Pricing Title</label>
+                                <input className="w-full p-2 border rounded" value={content.pricingTitle[editLang]} onChange={e => updateContent('pricingTitle', editLang, e.target.value)} />
+                            </div>
+                             <div>
+                                <label className="block text-xs font-bold text-stone-400 mb-1">Pricing Subtitle</label>
+                                <input className="w-full p-2 border rounded" value={content.pricingSubtitle[editLang]} onChange={e => updateContent('pricingSubtitle', editLang, e.target.value)} />
+                            </div>
+                             <div>
+                                <label className="block text-xs font-bold text-stone-400 mb-1">Notice Title</label>
+                                <input className="w-full p-2 border rounded" value={content.noticeTitle[editLang]} onChange={e => updateContent('noticeTitle', editLang, e.target.value)} />
                             </div>
                          </div>
                      </div>
@@ -1507,29 +1574,172 @@ const AdminPage: React.FC = () => {
              )}
 
              {activeTab === 'images' && (
-                 <div className="glass-panel p-6 rounded-2xl">
-                     <h3 className="font-bold mb-4">Portfolio Covers</h3>
+                 <div className="space-y-8">
                      {content.portfolio.map((album, idx) => (
-                         <div key={album.id} className="mb-4">
-                             <label className="block text-xs font-bold text-stone-400 mb-1">{album.title.en} Cover URL</label>
-                             <input className="w-full p-2 border rounded" value={album.cover} onChange={(e) => {
-                                 const newPortfolio = [...content.portfolio];
-                                 newPortfolio[idx].cover = e.target.value;
-                                 updateContent('portfolio', '', newPortfolio); 
-                             }} />
-                             <img src={album.cover} className="w-20 h-20 object-cover mt-2 rounded" />
+                         <div key={album.id} className="glass-panel p-6 rounded-2xl">
+                             <div className="flex justify-between items-end mb-4 border-b border-stone-200 pb-2">
+                                 <div>
+                                     <h3 className="font-bold text-lg">{album.title.ko} / {album.title.en}</h3>
+                                     <p className="text-xs text-stone-400">ID: {album.id}</p>
+                                 </div>
+                                 <div className="w-1/2">
+                                     <label className="block text-[10px] font-bold text-stone-400 mb-1">Cover Image URL</label>
+                                     <input className="w-full p-2 border rounded text-xs" value={album.cover} onChange={(e) => {
+                                         const newPortfolio = [...content.portfolio];
+                                         newPortfolio[idx].cover = e.target.value;
+                                         updateContent('portfolio', '', newPortfolio); 
+                                     }} />
+                                 </div>
+                             </div>
+                             
+                             {/* Image Grid */}
+                             <div className="grid grid-cols-4 md:grid-cols-6 gap-2 mb-4">
+                                 {album.images.map((img, imgIdx) => (
+                                     <div key={imgIdx} className="relative group aspect-square rounded-lg overflow-hidden border border-stone-200">
+                                         <img src={img} className="w-full h-full object-cover" alt="" />
+                                         <button 
+                                            onClick={() => removePortfolioImage(album.id, imgIdx)}
+                                            className="absolute inset-0 bg-red-500/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-white"
+                                         >
+                                             <Trash2 size={20} />
+                                         </button>
+                                     </div>
+                                 ))}
+                             </div>
+
+                             {/* Add Image */}
+                             <div className="flex gap-2">
+                                 <input 
+                                     placeholder="New Image URL" 
+                                     className="flex-1 p-2 border rounded text-sm"
+                                     value={imageInput} 
+                                     onChange={e => setImageInput(e.target.value)}
+                                     onKeyDown={e => {
+                                         if(e.key === 'Enter' && imageInput) {
+                                             addPortfolioImage(album.id, imageInput);
+                                             setImageInput("");
+                                         }
+                                     }}
+                                 />
+                                 <button 
+                                    onClick={() => {
+                                        if (imageInput) {
+                                            addPortfolioImage(album.id, imageInput);
+                                            setImageInput("");
+                                        }
+                                    }}
+                                    className="px-4 py-2 bg-black text-white rounded-lg text-xs font-bold"
+                                >
+                                     Add Image
+                                 </button>
+                             </div>
                          </div>
                      ))}
+                 </div>
+             )}
+
+             {activeTab === 'reviews' && (
+                 <div className="grid md:grid-cols-2 gap-8">
+                     {/* Review List */}
+                     <div className="space-y-4">
+                         <h3 className="font-bold text-xl mb-4">Existing Reviews</h3>
+                         {reviews.map(review => (
+                             <div key={review.id} className="bg-white p-4 rounded-xl shadow-sm border border-stone-200">
+                                 <div className="flex justify-between items-start mb-2">
+                                     <div>
+                                         <div className="font-bold">{review.author}</div>
+                                         <div className="text-xs text-stone-400">{review.date}</div>
+                                     </div>
+                                     <button onClick={() => deleteReview(review.id)} className="text-red-400 hover:text-red-600">
+                                         <Trash2 size={16} />
+                                     </button>
+                                 </div>
+                                 <p className="text-sm text-stone-600 mb-2">{review.content}</p>
+                                 <div className="flex gap-1 overflow-x-auto">
+                                     {review.photos.map((p, i) => (
+                                         <img key={i} src={p} className="w-10 h-10 object-cover rounded" />
+                                     ))}
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+
+                     {/* Add/Edit Form */}
+                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 h-fit sticky top-24">
+                         <h3 className="font-bold text-xl mb-4">Add New Review</h3>
+                         <div className="space-y-3">
+                             <input 
+                                 placeholder="Author Name" 
+                                 className="w-full p-2 border rounded"
+                                 value={newReviewForm.author || ''}
+                                 onChange={e => setNewReviewForm({...newReviewForm, author: e.target.value})}
+                             />
+                             <textarea 
+                                 placeholder="Review Content" 
+                                 className="w-full p-2 border rounded h-24"
+                                 value={newReviewForm.content || ''}
+                                 onChange={e => setNewReviewForm({...newReviewForm, content: e.target.value})}
+                             />
+                             <input 
+                                 placeholder="Date (e.g. 2024.03.01)" 
+                                 className="w-full p-2 border rounded"
+                                 value={newReviewForm.date || ''}
+                                 onChange={e => setNewReviewForm({...newReviewForm, date: e.target.value})}
+                             />
+                             <div>
+                                 <label className="text-xs font-bold text-stone-400">Rating</label>
+                                 <input 
+                                     type="number" max={5} min={1}
+                                     className="w-full p-2 border rounded"
+                                     value={newReviewForm.rating || 5}
+                                     onChange={e => setNewReviewForm({...newReviewForm, rating: parseInt(e.target.value)})}
+                                 />
+                             </div>
+                             <input 
+                                 placeholder="Photo URL (First)" 
+                                 className="w-full p-2 border rounded"
+                                 onChange={e => setNewReviewForm({...newReviewForm, photos: [e.target.value]})}
+                             />
+                             <button 
+                                 onClick={() => {
+                                     if(newReviewForm.author && newReviewForm.content) {
+                                         addReview({
+                                             id: Date.now().toString(),
+                                             email: 'admin@added.com',
+                                             photos: [],
+                                             ...newReviewForm,
+                                         } as Review);
+                                         setNewReviewForm({});
+                                     }
+                                 }}
+                                 className="w-full bg-black text-white py-3 rounded-xl font-bold"
+                             >
+                                 Add Review
+                             </button>
+                         </div>
+                     </div>
                  </div>
              )}
              
              {activeTab === 'meeting' && (
                 <div className="glass-panel p-6 rounded-2xl">
-                    <h3 className="font-bold mb-4">Meeting Points</h3>
+                    <h3 className="font-bold mb-4">Meeting Points ({editLang === 'ko' ? '한국어' : 'English'})</h3>
                     {content.meetingPoints.map((point, idx) => (
                         <div key={point.id} className="mb-6 border-b border-stone-200 pb-4 last:border-0">
                             <h4 className="font-bold text-sm mb-2 uppercase">{point.id}</h4>
                             <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-400 mb-1">Title</label>
+                                    <input 
+                                        className="w-full p-2 border rounded" 
+                                        value={point.title[editLang]} 
+                                        onChange={(e) => {
+                                            const newPoints = [...content.meetingPoints];
+                                            newPoints[idx].title[editLang] = e.target.value;
+                                            updateContent('meetingPoints', '', newPoints);
+                                        }} 
+                                    />
+                                </div>
                                 <div>
                                     <label className="block text-xs font-bold text-stone-400 mb-1">Google Maps URL</label>
                                     <input 
@@ -1542,14 +1752,14 @@ const AdminPage: React.FC = () => {
                                         }} 
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-stone-400 mb-1">Address</label>
-                                    <input 
+                                <div className="md:col-span-2">
+                                     <label className="block text-xs font-bold text-stone-400 mb-1">Description</label>
+                                    <textarea 
                                         className="w-full p-2 border rounded" 
-                                        value={point.address} 
+                                        value={point.description[editLang]} 
                                         onChange={(e) => {
                                             const newPoints = [...content.meetingPoints];
-                                            newPoints[idx].address = e.target.value;
+                                            newPoints[idx].description[editLang] = e.target.value;
                                             updateContent('meetingPoints', '', newPoints);
                                         }} 
                                     />
@@ -1561,7 +1771,7 @@ const AdminPage: React.FC = () => {
              )}
              
              <div className="mt-10 p-6 bg-yellow-50 rounded-2xl border border-yellow-200">
-                 <h3 className="font-bold mb-4 flex items-center gap-2"><CalendarIcon size={16}/> Booking Management</h3>
+                 <h3 className="font-bold mb-4 flex items-center gap-2"><CalendarIcon size={16}/> Booking Management (Sundays are auto-closed)</h3>
                  <div className="bg-white p-4 rounded-xl">
                      <CalendarView isAdmin={true} />
                  </div>
@@ -1743,17 +1953,24 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         });
     };
 
-    const loginAdmin = () => {
-        // Direct simulation of Google Login Success
-        setAdminUser({ email: 'heum@stills.com', isAuthenticated: true });
+    const loginAdmin = (email: string, password?: string) => {
+        // Hardcoded check for the specific user as requested to restrict access
+        if (email === 'maiminimum9@gmail.com' && password === '0629') {
+            setAdminUser({ email, isAuthenticated: true });
+            return true;
+        }
+        alert("관리자 권한이 없습니다. (Access Denied)");
+        return false;
     };
     const logoutAdmin = () => setAdminUser({ email: '', isAuthenticated: false });
     const addReview = (review: Review) => setReviews(prev => [review, ...prev]);
     const deleteReview = (id: string) => setReviews(prev => prev.filter(r => r.id !== id));
+    const updateReview = (review: Review) => setReviews(prev => prev.map(r => r.id === review.id ? review : r));
     
     // Placeholders
     const addPortfolioAlbum = (album: PortfolioAlbum) => setContent(prev => ({...prev, portfolio: [...prev.portfolio, album]}));
     const addPortfolioImage = (albumId: string, imageUrl: string) => setContent(prev => ({...prev, portfolio: prev.portfolio.map(a => a.id === albumId ? {...a, images: [...a.images, imageUrl]} : a)}));
+    const removePortfolioImage = (albumId: string, imageIndex: number) => setContent(prev => ({...prev, portfolio: prev.portfolio.map(a => a.id === albumId ? {...a, images: a.images.filter((_, i) => i !== imageIndex)} : a)}));
     const addFAQ = (faq: FAQItem) => setContent(prev => ({...prev, faqs: [...prev.faqs, faq]}));
     const updateFAQ = (faq: FAQItem) => setContent(prev => ({...prev, faqs: prev.faqs.map(f => f.id === faq.id ? faq : f)}));
     const deleteFAQ = (id: string) => setContent(prev => ({...prev, faqs: prev.faqs.filter(f => f.id !== id)}));
@@ -1762,8 +1979,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <AppContext.Provider value={{
             language, setLanguage, content, updateContent, schedule, toggleSlot,
             adminUser, loginAdmin, logoutAdmin, galleryFilter, setGalleryFilter,
-            reviews, addReview, deleteReview, addPortfolioAlbum, addPortfolioImage,
-            addFAQ, updateFAQ, deleteFAQ, isPlaying, toggleAudio, requestBooking,
+            reviews, addReview, deleteReview, updateReview, addPortfolioAlbum, addPortfolioImage,
+            removePortfolioImage, addFAQ, updateFAQ, deleteFAQ, isPlaying, toggleAudio, requestBooking,
             selectedAlbum, setSelectedAlbum
         }}>
             {children}

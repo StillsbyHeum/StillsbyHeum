@@ -49,6 +49,7 @@ export interface MeetingPoint {
 export interface ContentData {
   heroTitle: { ko: string; en: string };
   heroSubtitle: { ko: string; en: string };
+  artistGreeting: { ko: string; en: string }; // Added Greeting
   worksTitle: { ko: string; en: string };
   worksSubtitle: { ko: string; en: string };
   pricingTitle: { ko: string; en: string };

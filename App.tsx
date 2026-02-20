@@ -1,6 +1,6 @@
 import React, { useState, createContext, useContext, useEffect, useCallback, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Globe, User, Lock, Calendar as CalendarIcon, MessageCircle, ChevronRight, ChevronLeft, Instagram, X as CloseIcon, ChevronDown, ChevronUp, Star, Trash2, Plus, Play, Pause, MapPin, ArrowRight, Edit2, Bot, Settings, HelpCircle, Check, Map, Sparkles, Music, Send, Save, MinusCircle, FileText, Image as ImageIcon, RefreshCw, LayoutDashboard, Type, List, LogOut, Upload, GripHorizontal, AlertCircle } from 'lucide-react';
+import { Globe, User, Lock, Calendar as CalendarIcon, MessageCircle, ChevronRight, ChevronLeft, Instagram, X as CloseIcon, ChevronDown, ChevronUp, Star, Trash2, Plus, Play, Pause, MapPin, ArrowRight, Edit2, Bot, Settings, HelpCircle, Check, Map, Sparkles, Music, Send, Save, MinusCircle, FileText, Image as ImageIcon, RefreshCw, LayoutDashboard, Type, List, LogOut, Upload, GripHorizontal, AlertCircle, Menu } from 'lucide-react';
 import { Language, DaySchedule, ContentData, AdminUser, NoticeItem, Review, PortfolioAlbum, FAQItem, AILog } from './types';
 import { INITIAL_CONTENT, DEFAULT_SLOTS, ENCRYPTED_ADMIN_ID, ENCRYPTED_ADMIN_PW, INITIAL_REVIEWS } from './constants';
 import { generateResponse } from './services/geminiService';
@@ -504,9 +504,9 @@ const SplashScreen: React.FC<{ onFinish: () => void; isFinishing: boolean }> = (
     
     return (
         <div className={`fixed inset-0 z-[99999] bg-white flex items-center justify-center transition-opacity duration-1000 ${isFinishing ? 'pointer-events-none' : ''}`}>
-             <h1 className={`flex items-baseline gap-2 tracking-tighter ${isFinishing ? 'animate-disperse' : ''}`}>
+             <h1 className={`flex items-baseline gap-1 tracking-tighter ${isFinishing ? 'animate-disperse' : ''}`}>
                 <span className="text-4xl md:text-6xl font-bold font-outfit text-stone-900">STILLS</span>
-                <span className="text-2xl md:text-4xl font-light font-outfit text-stone-500 mx-1">by</span>
+                <span className="text-4xl md:text-6xl font-light font-outfit text-stone-900">by</span>
                 <span className="text-4xl md:text-6xl font-bold font-outfit text-stone-900">HEUM</span>
             </h1>
         </div>
@@ -589,55 +589,68 @@ const HeroSection: React.FC = () => {
 // Simplified Navigation - Floating on Top
 const Navigation: React.FC = () => {
     const location = useLocation();
+    const { content, language, setLanguage } = useAppContext();
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     return (
-        <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[8000] flex items-center gap-1 p-2 bg-white/80 backdrop-blur-xl rounded-full shadow-lg border border-white/20">
-             {/* Brand Name on the Left - ensuring it is visible and styled */}
-             <div className="pl-4 pr-2 font-outfit font-bold text-sm tracking-tighter flex items-center whitespace-nowrap">
-                <span>STILLS</span>
-                <span className="font-light text-black mx-0.5">by</span>
-                <span>HEUM</span>
-             </div>
-             <div className="w-px h-4 bg-stone-300 mx-1" />
+        <>
+            <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[8000] flex items-center justify-between w-full max-w-4xl px-4 pointer-events-none">
+                {/* Center Links (Pointer events auto) */}
+                <div className="pointer-events-auto flex items-center gap-1 p-2 bg-white/80 backdrop-blur-xl rounded-full shadow-lg border border-white/20 mx-auto">
+                    <Link to="/" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>STILLS</Link>
+                    <Link to="/info" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/info' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>PRODUCT</Link>
+                    <Link to="/contact" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/contact' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>BOOKING</Link>
+                </div>
 
-             {/* Links */}
-             <Link to="/" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>STILLS</Link>
-             <Link to="/info" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/info' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>PRODUCT</Link>
-             <Link to="/contact" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/contact' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>BOOKING</Link>
-        </nav>
+                {/* Right: Hamburger Menu */}
+                <div className="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2">
+                    <button 
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="p-3 bg-white/80 backdrop-blur-xl rounded-full shadow-lg border border-white/20 hover:bg-white transition text-stone-700"
+                    >
+                         {isMenuOpen ? <CloseIcon size={20} /> : <Menu size={20} />}
+                    </button>
+                    
+                    {/* Dropdown Menu */}
+                    {isMenuOpen && (
+                        <div className="absolute top-14 right-0 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-2 flex flex-col gap-2 min-w-[160px] animate-spring-up">
+                            <a href={content.instagramUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-100 transition text-sm font-medium text-stone-700">
+                                <Instagram size={18} className="text-pink-500" />
+                                <span>Instagram</span>
+                            </a>
+                            <a href={content.kakaoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-100 transition text-sm font-medium text-stone-700">
+                                <MessageCircle size={18} className="text-yellow-500 fill-yellow-500" />
+                                <span>KakaoTalk</span>
+                            </a>
+                            <button 
+                                onClick={() => { setLanguage(language === 'ko' ? 'en' : 'ko'); setIsMenuOpen(false); }}
+                                className="flex items-center gap-3 p-3 rounded-xl hover:bg-stone-100 transition text-sm font-medium text-stone-700 text-left w-full"
+                            >
+                                <Globe size={18} className="text-blue-500" />
+                                <span>{language === 'ko' ? 'English' : '한국어'}</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </nav>
+            {/* Overlay to close menu when clicking outside */}
+            {isMenuOpen && <div className="fixed inset-0 z-[7999]" onClick={() => setIsMenuOpen(false)} />}
+        </>
     );
 };
 
-// Floating Dock for Socials & AI
+// Floating Dock for AI Only
 const FloatingDock: React.FC<{ onOpenFAQ: () => void }> = ({ onOpenFAQ }) => {
-    const { content, language, setLanguage } = useAppContext();
     return (
         <div className="fixed bottom-8 left-0 w-full flex justify-center z-[8000] pointer-events-none">
-            <div className="pointer-events-auto flex items-center gap-3 p-3 bg-white/90 backdrop-blur-xl rounded-full shadow-2xl border border-white/20 transition-all animate-spring-up hover:scale-105">
-                <a href={content.instagramUrl} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-stone-100 rounded-full hover:bg-pink-50 text-stone-600 hover:text-pink-500 transition shadow-sm">
-                    <Instagram size={20} />
-                </a>
-                <a href={content.kakaoUrl} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-stone-100 rounded-full hover:bg-yellow-100 text-stone-600 hover:text-yellow-700 transition shadow-sm">
-                    <MessageCircle size={20} />
-                </a>
-                <div className="w-px h-5 bg-stone-300 mx-1" />
-                <button onClick={onOpenFAQ} className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-full font-bold text-xs hover:bg-stone-800 transition shadow-md">
+            <div className="pointer-events-auto transition-all animate-spring-up hover:scale-105">
+                <button onClick={onOpenFAQ} className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-full font-bold text-xs hover:bg-stone-800 transition shadow-2xl border border-white/20">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M8 14s1.5 2 4 2 4-2 4-2" />
                         <line x1="9" y1="9" x2="9.01" y2="9" />
                         <line x1="15" y1="9" x2="15.01" y2="9" />
                     </svg>
                     <span>HEUM's Ai</span>
-                </button>
-                
-                {/* Language Toggle moved to Dock */}
-                <div className="w-px h-5 bg-stone-300 mx-1" />
-                <button 
-                    onClick={() => setLanguage(language === 'ko' ? 'en' : 'ko')} 
-                    className="p-2.5 bg-stone-100 rounded-full hover:bg-stone-200 text-stone-600 transition shadow-sm"
-                    title={language === 'ko' ? "Switch to English" : "한국어로 변경"}
-                >
-                    <Globe size={20} />
                 </button>
             </div>
         </div>
@@ -646,16 +659,16 @@ const FloatingDock: React.FC<{ onOpenFAQ: () => void }> = ({ onOpenFAQ }) => {
 
 // Portfolio Strip Component
 const PortfolioStrip: React.FC<{ album: PortfolioAlbum, duration: number }> = ({ album, duration }) => {
-    const { language, setSelectedAlbum, setViewingImage } = useAppContext();
+    const { setSelectedAlbum } = useAppContext();
     const displayImages = [...album.images, ...album.images, ...album.images].slice(0, 15); 
     const fallbackImage = album.cover;
 
     return (
         <div className="relative w-full h-auto py-4 overflow-hidden bg-white border-b border-stone-100 last:border-0 group/strip">
             <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                <div className="bg-white/80 backdrop-blur-sm px-8 py-3 rounded-full shadow-sm border border-white/50 pointer-events-auto cursor-pointer hover:scale-105 transition transform flex flex-col items-center gap-2" onClick={() => setSelectedAlbum(album)}>
-                    <h3 className="text-xs md:text-sm font-bold tracking-widest text-black uppercase font-outfit relative group/title">
-                         <span className="relative z-50">{album.title[language]}</span>
+                <div className="pointer-events-auto cursor-pointer" onClick={() => setSelectedAlbum(album)}>
+                    <h3 className="text-4xl md:text-6xl font-calligraphy text-white drop-shadow-md relative z-50">
+                         {album.title.en}
                     </h3>
                 </div>
             </div>
@@ -667,7 +680,7 @@ const PortfolioStrip: React.FC<{ album: PortfolioAlbum, duration: number }> = ({
                 {(displayImages.length > 0 ? displayImages : [fallbackImage, fallbackImage, fallbackImage, fallbackImage]).map((img, idx) => (
                     <div 
                         key={`${album.id}-${idx}`} 
-                        onClick={() => setViewingImage(img)}
+                        onClick={() => setSelectedAlbum(album)}
                         className={`
                             relative shrink-0 rounded-lg overflow-hidden cursor-pointer
                             w-[85vw] h-auto aspect-[3/4] 
@@ -675,7 +688,7 @@ const PortfolioStrip: React.FC<{ album: PortfolioAlbum, duration: number }> = ({
                         `}
                     >
                         <img src={img} className="w-full h-full object-cover" alt="Portfolio" />
-                        <div className="absolute inset-0 bg-black/0 group-hover/strip:bg-black/10 transition pointer-events-none" />
+                        {/* Darkening overlay removed */}
                     </div>
                 ))}
             </div>
@@ -900,23 +913,8 @@ const CalendarView: React.FC = () => {
 
     return (
         <div>
-            {/* Location Selection First */}
-            <div className="mb-8">
-                <h3 className="font-bold mb-3">{language === 'ko' ? '1. 촬영 장소 선택 (다중 선택 가능)' : '1. Select Location(s)'}</h3>
-                <div className="flex flex-wrap gap-2">
-                    {['Big Ben', 'Tower Bridge', 'London Eye', 'St. Pauls', 'Notting Hill', 'Others'].map(loc => (
-                        <button 
-                            key={loc} 
-                            onClick={() => toggleLocation(loc)}
-                            className={`px-4 py-2 rounded-full border text-sm transition ${selectedLocations.includes(loc) ? 'bg-black text-white border-black' : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'}`}
-                        >
-                            {loc}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <h3 className="font-bold mb-3">{language === 'ko' ? '2. 날짜 및 시간 선택' : '2. Select Date & Time'}</h3>
+            {/* 1. Date & Time Selection (Moved Up) */}
+            <h3 className="font-bold mb-3">{language === 'ko' ? '1. 날짜 및 시간 선택' : '1. Select Date & Time'}</h3>
             <div className="flex justify-between items-center mb-4">
                 <button onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth()-1); setCurrentDate(d); }}><ChevronLeft /></button>
                 <span className="font-bold">{currentDate.toLocaleDateString(language==='ko'?'ko-KR':'en-US', {month:'long', year:'numeric'})}</span>
@@ -979,6 +977,22 @@ const CalendarView: React.FC = () => {
                         </button>
                     )
                 })}
+            </div>
+
+            {/* 2. Location Selection (Moved Down) */}
+            <div className="mb-8">
+                <h3 className="font-bold mb-3">{language === 'ko' ? '2. 촬영 장소 선택 (다중 선택 가능)' : '2. Select Location(s)'}</h3>
+                <div className="flex flex-wrap gap-2">
+                    {['Big Ben', 'Tower Bridge', 'London Eye', 'St. Pauls', 'Notting Hill', 'Others'].map(loc => (
+                        <button 
+                            key={loc} 
+                            onClick={() => toggleLocation(loc)}
+                            className={`px-4 py-2 rounded-full border text-sm transition ${selectedLocations.includes(loc) ? 'bg-black text-white border-black' : 'bg-white text-stone-500 border-stone-200 hover:border-stone-400'}`}
+                        >
+                            {loc}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {selectedTimeSlots.length > 0 && selectedLocations.length > 0 && !bookingForm && (
@@ -1391,7 +1405,34 @@ const AppContent: React.FC = () => {
     const [finishing, setFinishing] = useState(false);
     const [adminOpen, setAdminOpen] = useState(false);
     const [faqOpen, setFaqOpen] = useState(false);
+    
+    // Page Transition State
     const location = useLocation();
+    const [direction, setDirection] = useState<'right' | 'left'>('right');
+    const prevPathRef = useRef(location.pathname);
+
+    // Order of pages: Stills (/) -> Product (/info) -> Booking (/contact)
+    const getPageIndex = (path: string) => {
+        if (path === '/') return 0;
+        if (path === '/info') return 1;
+        if (path === '/contact') return 2;
+        return 0;
+    };
+
+    useEffect(() => {
+        const prevIndex = getPageIndex(prevPathRef.current);
+        const currIndex = getPageIndex(location.pathname);
+        
+        // If moving forward (e.g. 0 -> 1), content enters from Right (normal)
+        // If moving backward (e.g. 1 -> 0), content enters from Left
+        if (currIndex > prevIndex) {
+            setDirection('right');
+        } else if (currIndex < prevIndex) {
+            setDirection('left');
+        }
+        
+        prevPathRef.current = location.pathname;
+    }, [location.pathname]);
 
     const handleFinish = () => { setFinishing(true); setTimeout(() => setSplash(false), 1000); };
 
@@ -1402,8 +1443,11 @@ const AppContent: React.FC = () => {
             <ScrollToTop />
             <Navigation />
 
-            {/* Transition Wrapper */}
-            <div key={location.pathname} className="animate-slide-in-right">
+            {/* Transition Wrapper: Key forces re-render to trigger animation */}
+            <div 
+                key={location.pathname} 
+                className={direction === 'right' ? 'animate-slide-in-right' : 'animate-slide-in-left'}
+            >
                 <Routes location={location}>
                     <Route path="/" element={<PortfolioPage />} />
                     <Route path="/info" element={<InfoPage />} />
@@ -1419,7 +1463,7 @@ const AppContent: React.FC = () => {
                 <Lock size={16} />
             </button>
             
-            {/* Floating Dock: Socials & AI (Bottom Center) */}
+            {/* Floating Dock: AI Only */}
             <FloatingDock onOpenFAQ={() => setFaqOpen(true)} />
 
             <footer className="py-12 text-center border-t border-stone-100 mt-12 pb-32">

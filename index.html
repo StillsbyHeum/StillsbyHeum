@@ -10,6 +10,32 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@200;300;400;500&family=Outfit:wght@100;200;300;400;500;600;700&family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet">
+    
+    <!-- In-App Browser Escape Script -->
+    <script type="text/javascript">
+      (function() {
+        var userAgent = navigator.userAgent.toLowerCase();
+        var targetUrl = location.href;
+        
+        // Check for KakaoTalk, Line, Facebook, Instagram in-app browsers
+        if (userAgent.match(/kakaotalk|line|inapp|naver|snapchat|fban|fbav|instagram/i)) {
+          
+          // Android: Force Chrome via Intent
+          if (userAgent.match(/android/i)) {
+            // If it's already an intent URL, ignore
+            if (!targetUrl.startsWith("intent://")) {
+               var cleanUrl = targetUrl.replace(/https?:\/\//i, '');
+               location.href = 'intent://' + cleanUrl + '#Intent;scheme=https;package=com.android.chrome;end';
+            }
+          } 
+          // iOS: Cannot force open effectively without user interaction in recent iOS versions,
+          // but we can try to redirect or just ensure the page renders correctly.
+          // Some implementations use googlechrome:// but that requires Chrome installed.
+          // For now, we stick to standard behavior for iOS but ensure viewport is correct.
+        }
+      })();
+    </script>
+
     <style>
       html, body {
         width: 100%;
@@ -22,6 +48,7 @@
         background-color: #ffffff;
         position: relative;
         overscroll-behavior-y: none;
+        overflow-x: hidden;
       }
       .font-serif-kr {
         font-family: 'Noto Serif KR', serif;
@@ -59,6 +86,34 @@
       }
       .animate-fade-in {
         animation: fadeIn 0.6s ease-out forwards;
+      }
+
+      /* Sideways Slide In Transition - Updated: Slower, No Fade */
+      @keyframes slideInRight {
+        from { transform: translateX(50px); }
+        to { transform: translateX(0); }
+      }
+      .animate-slide-in-right {
+        animation: slideInRight 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+
+      /* Particle Disperse Effect for Splash */
+      @keyframes disperse {
+        0% { 
+          opacity: 1; 
+          transform: scale(1); 
+          filter: blur(0px); 
+          letter-spacing: normal;
+        }
+        100% { 
+          opacity: 0; 
+          transform: scale(1.5); 
+          filter: blur(10px); 
+          letter-spacing: 1rem;
+        }
+      }
+      .animate-disperse {
+        animation: disperse 0.8s ease-in forwards;
       }
 
       @keyframes slideUp {

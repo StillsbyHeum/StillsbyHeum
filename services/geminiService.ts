@@ -2,14 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 
 export const generateResponse = async (userPrompt: string, context: string, fullData?: any) => {
   try {
-    const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
-    
-    if (!apiKey) {
-        console.warn("Gemini API Key is missing.");
-        return "시스템 설정 오류: API 키가 확인되지 않습니다.";
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
+    // Initialize GoogleGenAI with the environment variable directly.
+    // This avoids issues where checking for 'process' object existence fails in some bundlers.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     // Construct a rich context from the full data object if provided
     let richContext = context;

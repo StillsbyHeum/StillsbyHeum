@@ -46,9 +46,9 @@ export const NOTICES: NoticeItem[] = [
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
-  { id: '/', ko: '포트폴리오', en: 'Portfolio' },
-  { id: '/info', ko: '촬영안내', en: 'Info' },
-  { id: '/contact', ko: '예약하기', en: 'Reservation' }
+  { id: '/', ko: 'STILLS', en: 'STILLS' },
+  { id: '/info', ko: 'PRODUCT', en: 'PRODUCT' },
+  { id: '/contact', ko: 'BOOKING', en: 'BOOKING' }
 ];
 
 export const PACKAGES: PackageItem[] = [
@@ -279,7 +279,13 @@ export const INITIAL_CONTENT: ContentData = {
   notices: NOTICES,
   packages: PACKAGES,
   aiContext: "촬영 장소는 주로 런던의 랜드마크에서 진행됩니다. 의상은 밝은 톤을 추천드립니다.", // Default context
-  aiLogs: [] // Initialize empty logs
+  aiLogs: [], // Initialize empty logs
+  aiQuickQuestions: [
+      "예약은 어떻게 하나요?",
+      "가격 정보를 알려주세요.",
+      "비가 오면 촬영은 어떻게 되나요?",
+      "보정은 어떻게 진행되나요?"
+  ]
 };
 
 export const DEFAULT_SLOTS = [

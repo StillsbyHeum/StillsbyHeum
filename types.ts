@@ -98,6 +98,7 @@ export interface ContentData {
   packages: PackageItem[]; 
   aiContext: string; // Admin defined context for AI
   aiLogs: AILog[]; // Log of AI interactions
+  aiQuickQuestions: string[]; // List of suggested questions for the AI widget
 }
 
 export type AdminUser = {

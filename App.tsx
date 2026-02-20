@@ -73,6 +73,7 @@ interface AppContextType {
   reorderPortfolioImages: (albumId: string, fromIndex: number, toIndex: number) => void;
   // AI Management
   setAIContext: (newContext: string) => void;
+  setAIQuickQuestions: (questions: string[]) => void;
   logAIInteraction: (question: string, answer: string) => void;
   isPlaying: boolean;
   toggleAudio: () => void;
@@ -99,6 +100,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   // --- PERSISTENCE HELPER (ROBUST MERGE) ---
   const usePersistentState = <T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+      // 1. Initialize State
       const [state, setState] = useState<T>(() => {
           try {
               const item = localStorage.getItem(key);
@@ -112,8 +114,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
                   // Object Merge Strategy:
                   // We merge initialValue (code defaults) with parsed (saved user data).
-                  // Parsed data MUST override initialValue for existing keys.
-                  // New keys in initialValue (from code updates) will be added.
+                  // Parsed data (User edits) MUST override initialValue for existing keys.
+                  // New keys in initialValue (from code updates) will be added to the object.
                   if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue)) {
                       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                           return { ...initialValue, ...parsed };
@@ -129,7 +131,13 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           }
       });
 
-      // Auto-save effect with debounce
+      // 2. Ref to hold current state for event listeners
+      const stateRef = useRef(state);
+      useEffect(() => {
+          stateRef.current = state;
+      }, [state]);
+
+      // 3. Auto-save effect with debounce
       useEffect(() => {
           const handler = setTimeout(() => {
               try {
@@ -143,17 +151,30 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                       setStorageWarning(true);
                   }
               }
-          }, 800); // Debounce saves by 800ms
+          }, 500); // Reduced debounce to 500ms
 
           return () => clearTimeout(handler);
       }, [key, state]);
+
+      // 4. Force Save on Close (Prevent data loss)
+      useEffect(() => {
+          const handleBeforeUnload = () => {
+              try {
+                  localStorage.setItem(key, JSON.stringify(stateRef.current));
+              } catch (e) {
+                  console.error("Emergency save failed", e);
+              }
+          };
+          window.addEventListener('beforeunload', handleBeforeUnload);
+          return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+      }, [key]);
 
       return [state, setState];
   };
 
   const [language, setLanguage] = useState<Language>('ko');
   
-  // Persisted States
+  // Persisted States - Using the robust persistence hook
   const [content, setContent] = usePersistentState<ContentData>('sbh_content', INITIAL_CONTENT);
   const [schedule, setSchedule] = usePersistentState<Record<string, DaySchedule>>('sbh_schedule', {});
   const [reviews, setReviews] = usePersistentState<Review[]>('sbh_reviews', INITIAL_REVIEWS);
@@ -427,6 +448,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const setAIContext = (newContext: string) => setContent(prev => ({ ...prev, aiContext: newContext }));
+  const setAIQuickQuestions = (questions: string[]) => setContent(prev => ({ ...prev, aiQuickQuestions: questions }));
   
   const logAIInteraction = (question: string, answer: string) => {
       const newLog: AILog = {
@@ -450,7 +472,7 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       reviews: Array.isArray(reviews) ? reviews : [],
       addReview, deleteReview, updateReview,
       addPortfolioImage, removePortfolioImage, reorderPortfolioImages,
-      setAIContext, logAIInteraction, isPlaying, toggleAudio, requestBooking,
+      setAIContext, setAIQuickQuestions, logAIInteraction, isPlaying, toggleAudio, requestBooking,
       selectedAlbum, setSelectedAlbum,
       viewingImage, setViewingImage, storageWarning, manualSave
     }}>
@@ -479,10 +501,13 @@ const SplashScreen: React.FC<{ onFinish: () => void; isFinishing: boolean }> = (
         const timer = setTimeout(() => onFinish(), 2200);
         return () => clearTimeout(timer);
     }, [onFinish]);
+    
     return (
-        <div className={`fixed inset-0 z-[99999] bg-white flex items-center justify-center transition-all duration-1000 ${isFinishing ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-             <h1 className="font-outfit text-4xl md:text-6xl font-bold tracking-tighter animate-pulse text-black">
-                STILLS<span className="font-normal font-sans mx-2 text-stone-400">by</span>HEUM
+        <div className={`fixed inset-0 z-[99999] bg-white flex items-center justify-center transition-opacity duration-1000 ${isFinishing ? 'pointer-events-none' : ''}`}>
+             <h1 className={`flex items-baseline gap-2 tracking-tighter ${isFinishing ? 'animate-disperse' : ''}`}>
+                <span className="text-4xl md:text-6xl font-bold font-outfit text-stone-900">STILLS</span>
+                <span className="text-2xl md:text-4xl font-light font-outfit text-stone-500 mx-1">by</span>
+                <span className="text-4xl md:text-6xl font-bold font-outfit text-stone-900">HEUM</span>
             </h1>
         </div>
     );
@@ -504,7 +529,7 @@ const AlbumDetail: React.FC = () => {
     if (!selectedAlbum) return null;
 
     return (
-        <div className="fixed inset-0 z-[9999] bg-white overflow-y-auto animate-fade-in">
+        <div className="fixed inset-0 z-[9999] bg-white overflow-y-auto animate-slide-in-right">
             <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-stone-100">
                 <button onClick={() => setSelectedAlbum(null)} className="p-2 rounded-full hover:bg-stone-100"><CloseIcon size={24} /></button>
                 <h2 className="font-outfit text-xl font-bold">{selectedAlbum.title.en}</h2>
@@ -563,26 +588,29 @@ const HeroSection: React.FC = () => {
 
 // Simplified Navigation - Floating on Top
 const Navigation: React.FC = () => {
-    const { language, setLanguage, isPlaying, toggleAudio } = useAppContext();
     const location = useLocation();
 
     return (
         <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[8000] flex items-center gap-1 p-2 bg-white/80 backdrop-blur-xl rounded-full shadow-lg border border-white/20">
-             <Link to="/" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>Portfolio</Link>
-             <Link to="/info" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/info' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>Info</Link>
-             <Link to="/contact" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/contact' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>Book</Link>
-             
+             {/* Brand Name on the Left - ensuring it is visible and styled */}
+             <div className="pl-4 pr-2 font-outfit font-bold text-sm tracking-tighter flex items-center whitespace-nowrap">
+                <span>STILLS</span>
+                <span className="font-light text-black mx-0.5">by</span>
+                <span>HEUM</span>
+             </div>
              <div className="w-px h-4 bg-stone-300 mx-1" />
-             
-             <button onClick={() => setLanguage(language === 'ko' ? 'en' : 'ko')} className="w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold hover:bg-stone-100">{language.toUpperCase()}</button>
-             <button onClick={toggleAudio} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-100">{isPlaying ? <Pause size={14} /> : <Play size={14} />}</button>
+
+             {/* Links */}
+             <Link to="/" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>STILLS</Link>
+             <Link to="/info" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/info' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>PRODUCT</Link>
+             <Link to="/contact" className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition ${location.pathname === '/contact' ? 'bg-black text-white' : 'text-stone-500 hover:bg-stone-100'}`}>BOOKING</Link>
         </nav>
     );
 };
 
 // Floating Dock for Socials & AI
 const FloatingDock: React.FC<{ onOpenFAQ: () => void }> = ({ onOpenFAQ }) => {
-    const { content } = useAppContext();
+    const { content, language, setLanguage } = useAppContext();
     return (
         <div className="fixed bottom-8 left-0 w-full flex justify-center z-[8000] pointer-events-none">
             <div className="pointer-events-auto flex items-center gap-3 p-3 bg-white/90 backdrop-blur-xl rounded-full shadow-2xl border border-white/20 transition-all animate-spring-up hover:scale-105">
@@ -600,6 +628,16 @@ const FloatingDock: React.FC<{ onOpenFAQ: () => void }> = ({ onOpenFAQ }) => {
                         <line x1="15" y1="9" x2="15.01" y2="9" />
                     </svg>
                     <span>HEUM's Ai</span>
+                </button>
+                
+                {/* Language Toggle moved to Dock */}
+                <div className="w-px h-5 bg-stone-300 mx-1" />
+                <button 
+                    onClick={() => setLanguage(language === 'ko' ? 'en' : 'ko')} 
+                    className="p-2.5 bg-stone-100 rounded-full hover:bg-stone-200 text-stone-600 transition shadow-sm"
+                    title={language === 'ko' ? "Switch to English" : "한국어로 변경"}
+                >
+                    <Globe size={20} />
                 </button>
             </div>
         </div>
@@ -823,7 +861,7 @@ const CalendarView: React.FC = () => {
 
             if (response.ok) {
                 setSubmitStatus('success');
-                alert(language === 'ko' ? "예약 요청이 전송되었습니다." : "Request sent.");
+                alert(language === 'ko' ? "예약 요청이 전송되었습니다. 이메일 답장을 기다려주세요." : "Request sent. Please wait for an email reply.");
                 selectedTimeSlots.forEach(t => requestBooking(selectedDate, t));
                 setBookingForm(null);
                 setSelectedTimeSlots([]);
@@ -995,466 +1033,143 @@ const CalendarView: React.FC = () => {
 
 const ContactPage: React.FC = () => {
     return (
-        <div className="min-h-screen pt-32 px-6 pb-32 max-w-lg mx-auto">
-            <h1 className="text-3xl font-bold font-outfit mb-10 text-center">RESERVATION</h1>
-            <CalendarView />
+        <div className="min-h-screen pt-32 px-6 pb-32 max-w-4xl mx-auto animate-slide-in-right">
+             <h2 className="text-3xl font-bold font-outfit mb-8 text-center">BOOKING</h2>
+             <div className="bg-white p-6 md:p-12 rounded-3xl shadow-2xl border border-stone-100">
+                <CalendarView />
+             </div>
         </div>
     );
 };
-
-interface Message {
-    id: number;
-    text: string;
-    sender: 'user' | 'bot';
-}
 
 const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
     const { content, language, logAIInteraction } = useAppContext();
-    const [q, setQ] = useState('');
-    const [messages, setMessages] = useState<Message[]>([
-        { id: 0, text: language === 'ko' ? "안녕하세요! 무엇을 도와드릴까요?" : "Hello! How can I help you?", sender: 'bot' }
+    const [messages, setMessages] = useState<{role: 'user'|'bot', text: string}[]>([
+        { role: 'bot', text: language === 'ko' ? "안녕하세요! 흠작가님의 AI 매니저입니다. 무엇을 도와드릴까요?" : "Hello! I'm Heum's AI Manager. How can I help you?" }
     ]);
+    const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const [showQuickQuestions, setShowQuickQuestions] = useState(false); // Toggle state for Q&A
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        scrollToBottom();
-    }, [messages, isOpen]);
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages]);
 
-    const addMessage = (text: string, sender: 'user' | 'bot') => {
-        setMessages(prev => [...prev, { id: Date.now(), text, sender }]);
-    };
-
-    const handleAsk = async (text: string) => {
-        if (!text.trim()) return;
-        addMessage(text, 'user');
+    const handleSend = async (text: string = input) => {
+        if (!text.trim() || loading) return;
+        const userMsg = text;
+        setInput("");
+        setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
         setLoading(true);
-        // Pass the LATEST content to the AI so it knows about admin updates
-        const res = await generateResponse(text, content.aiContext, content);
-        setLoading(false);
-        addMessage(res, 'bot');
-        logAIInteraction(text, res);
-    };
+        setShowQuickQuestions(false); // Hide Q&A on send
 
-    const submitForm = (e: React.FormEvent) => {
-        e.preventDefault();
-        handleAsk(q);
-        setQ('');
+        const response = await generateResponse(userMsg, content.aiContext, content);
+        
+        setMessages(prev => [...prev, { role: 'bot', text: response }]);
+        logAIInteraction(userMsg, response);
+        setLoading(false);
     };
 
     if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-[9990] bg-black/50 backdrop-blur-sm flex justify-center items-center p-4" onClick={onClose}>
-            <div className="bg-white w-full max-w-md h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b flex justify-between items-center bg-stone-50">
-                    <div className="flex items-center gap-2">
-                         <div className="bg-black text-white p-1.5 rounded-full">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                                <line x1="9" y1="9" x2="9.01" y2="9" />
-                                <line x1="15" y1="9" x2="15.01" y2="9" />
-                            </svg>
-                        </div>
-                        <h3 className="font-bold font-outfit">HEUM's Ai</h3>
+        <div className="fixed bottom-24 right-4 z-[9000] w-[90vw] md:w-[400px] h-[60vh] bg-white rounded-3xl shadow-2xl border border-stone-200 flex flex-col overflow-hidden animate-slide-up">
+            <div className="bg-black text-white p-4 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                            <line x1="9" y1="9" x2="9.01" y2="9" />
+                            <line x1="15" y1="9" x2="15.01" y2="9" />
+                        </svg>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-stone-200 rounded-full"><CloseIcon size={20}/></button>
+                    <span className="font-bold text-sm">HEUM's AI Manager</span>
                 </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50/50">
-                    {messages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                                msg.sender === 'user' 
-                                ? 'bg-stone-900 text-white rounded-tr-none' 
-                                : 'bg-white text-stone-800 border border-stone-100 rounded-tl-none'
-                            }`}>
-                                {msg.text}
-                            </div>
+                <button onClick={onClose}><CloseIcon size={20} /></button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50 relative" ref={scrollRef}>
+                {messages.map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed ${
+                            m.role === 'user' 
+                            ? 'bg-black text-white rounded-tr-none' 
+                            : 'bg-white border border-stone-200 text-stone-800 rounded-tl-none shadow-sm'
+                        }`}>
+                            {m.text}
                         </div>
-                    ))}
-                    {loading && (
-                        <div className="flex justify-start">
-                            <div className="bg-white text-stone-400 p-3 rounded-2xl rounded-tl-none text-xs border border-stone-100 flex gap-1 items-center">
-                                <Sparkles size={12} className="animate-spin" /> Thinking...
-                            </div>
+                    </div>
+                ))}
+                {loading && (
+                    <div className="flex justify-start">
+                        <div className="bg-white border border-stone-200 p-3 rounded-2xl rounded-tl-none shadow-sm flex gap-1">
+                            <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" />
+                            <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce delay-100" />
+                            <span className="w-2 h-2 bg-stone-400 rounded-full animate-bounce delay-200" />
                         </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                </div>
+                    </div>
+                )}
+            </div>
 
-                <div className="p-4 bg-white border-t border-stone-100 max-h-40 overflow-y-auto">
-                     <div className="flex flex-wrap gap-2 justify-center">
-                        {content.faqs.map(f => (
+            {/* Quick Question Container (Relative for absolute positioning of list) */}
+            <div className="relative">
+                 {/* Quick Questions Slide-Up Menu */}
+                {showQuickQuestions && content.aiQuickQuestions && content.aiQuickQuestions.length > 0 && (
+                    <div className="absolute bottom-full left-0 w-full bg-white/95 backdrop-blur-md border-t border-stone-100 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] p-2 flex flex-col gap-1 max-h-[50vh] overflow-y-auto animate-slide-up z-20 rounded-t-2xl">
+                        <div className="flex justify-between items-center px-2 py-1 mb-1 border-b border-stone-100">
+                            <span className="text-xs font-bold text-stone-500">자주 묻는 질문</span>
+                            <button onClick={() => setShowQuickQuestions(false)} className="p-1 hover:bg-stone-100 rounded-full"><CloseIcon size={14} className="text-stone-400"/></button>
+                        </div>
+                        {content.aiQuickQuestions.map((q, idx) => (
                             <button 
-                                key={f.id} 
-                                onClick={() => {
-                                    addMessage(f.q[language], 'user');
-                                    setTimeout(() => addMessage(f.a[language], 'bot'), 500);
-                                }}
-                                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 rounded-full text-xs font-bold text-stone-600 transition"
+                                key={idx}
+                                onClick={() => handleSend(q)}
+                                disabled={loading}
+                                className="w-full text-left px-3 py-3 hover:bg-stone-50 rounded-xl text-xs font-medium text-stone-700 transition flex items-center group"
                             >
-                                {f.q[language]}
+                                <span className="w-1.5 h-1.5 rounded-full bg-stone-300 group-hover:bg-black mr-2 transition-colors"></span>
+                                {q}
                             </button>
                         ))}
-                     </div>
-                </div>
-
-                <div className="p-3 bg-white pb-6">
-                    <form onSubmit={submitForm} className="relative flex items-center gap-2">
-                        <input 
-                            value={q} 
-                            onChange={e=>setQ(e.target.value)} 
-                            placeholder={language === 'ko' ? "메시지를 입력하세요..." : "Type a message..."}
-                            className="flex-1 p-3 pl-4 rounded-full bg-stone-100 text-sm focus:outline-none focus:ring-1 focus:ring-stone-300 transition" 
-                        />
-                        <button type="submit" disabled={!q.trim() || loading} className="p-3 bg-black text-white rounded-full hover:scale-105 transition disabled:opacity-50 disabled:scale-100">
-                            <Send size={16} />
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- Full Screen Admin Dashboard ---
-const AdminDashboard: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-    const { adminUser, loginAdmin, logoutAdmin, content, updateContent, updateCollectionItem, addCollectionItem, removeCollectionItem, reviews, deleteReview, addReview, updateReview, addPortfolioImage, removePortfolioImage, reorderPortfolioImages, schedule, toggleSlot, setAIContext, storageWarning, manualSave } = useAppContext();
-    const [creds, setCreds] = useState({ id: '', pw: '' });
-    const [activeTab, setActiveTab] = useState('general');
-    
-    // Form States
-    const [newReview, setNewReview] = useState({ author: '', content: '', rating: 5, date: new Date().toISOString().split('T')[0], photos: [] as string[] });
-    const [draggedItem, setDraggedItem] = useState<{ type: string, index: number, albumId?: string } | null>(null);
-
-    // File Upload Handler (Compressed)
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, callback: (url: string) => void) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            compressImage(file).then(callback);
-        }
-    };
-
-    // Audio Upload Handler
-    const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.size > 3 * 1024 * 1024) { // 3MB Limit
-                alert("File is too large (Max 3MB). Please upload a smaller file.");
-                e.target.value = ''; // Reset input
-                return;
-            }
-            convertFileToBase64(file)
-                .then(url => updateContent('backgroundMusicUrl', '', url))
-                .catch(() => alert("Failed to process audio file."));
-        }
-    };
-
-    // Common Input Style - Bright Yellow for Visibility
-    const inputStyle = "w-full p-2.5 rounded-lg border-2 border-yellow-200 bg-yellow-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent placeholder:text-yellow-700/40 transition font-medium";
-    const textareaStyle = "w-full p-2.5 rounded-lg border-2 border-yellow-200 bg-yellow-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none h-24 font-medium";
-
-    if (!isOpen) return null;
-
-    if (!adminUser.isAuthenticated) {
-        return (
-            <div className="fixed inset-0 z-[9999] bg-white flex items-center justify-center p-4">
-                 <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full"><CloseIcon /></button>
-                 <div className="w-full max-w-sm space-y-6">
-                    <div className="text-center">
-                        <div className="w-16 h-16 bg-black text-white rounded-2xl mx-auto flex items-center justify-center mb-4"><Lock size={32}/></div>
-                        <h2 className="text-2xl font-bold">Admin Access</h2>
                     </div>
-                    <input className="w-full p-4 bg-gray-50 rounded-xl border" placeholder="Email" onChange={e => setCreds({...creds, id: e.target.value})} />
-                    <input className="w-full p-4 bg-gray-50 rounded-xl border" type="password" placeholder="Password" onChange={e => setCreds({...creds, pw: e.target.value})} />
-                    <button onClick={() => { if(loginAdmin(creds.id, creds.pw)) setCreds({id:'',pw:''}); else alert('Invalid'); }} className="w-full p-4 bg-black text-white rounded-xl font-bold hover:scale-[1.02] transition">LOGIN</button>
-                 </div>
-            </div>
-        );
-    }
-
-    const NavItem = ({ id, icon: Icon, label }: any) => (
-        <button 
-            onClick={() => setActiveTab(id)} 
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition font-medium ${activeTab === id ? 'bg-black text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-        >
-            <Icon size={18} /> {label}
-        </button>
-    );
-
-    return (
-        <div className="fixed inset-0 z-[9999] bg-gray-50 flex overflow-hidden">
-            {/* Sidebar */}
-            <div className="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
-                <div className="font-bold text-xl mb-8 px-4">SBH Admin</div>
-                <div className="space-y-1 flex-1">
-                    <NavItem id="general" icon={LayoutDashboard} label="General" />
-                    <NavItem id="portfolio" icon={ImageIcon} label="Portfolio" />
-                    <NavItem id="packages" icon={List} label="Packages" />
-                    <NavItem id="notices" icon={FileText} label="Notices" />
-                    <NavItem id="reviews" icon={Star} label="Reviews" />
-                    <NavItem id="schedule" icon={CalendarIcon} label="Schedule" />
-                    <NavItem id="settings" icon={Settings} label="Settings" />
-                </div>
-                {storageWarning && (
-                     <div className="px-4 py-3 mb-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2 animate-pulse">
-                        <AlertCircle size={16} /> 
-                        <div>
-                            <div>Storage Limit Reached!</div>
-                            <div className="font-normal text-[10px]">Changes are NOT saved. Delete photos.</div>
-                        </div>
-                     </div>
                 )}
-                
-                <button onClick={manualSave} className="flex items-center gap-2 px-4 py-3 text-blue-600 hover:bg-blue-50 rounded-xl mt-auto font-medium mb-2">
-                    <Save size={18} /> Save Changes
-                </button>
 
-                <button onClick={() => { logoutAdmin(); onClose(); }} className="flex items-center gap-2 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-medium">
-                    <LogOut size={18} /> Logout
-                </button>
-                <button onClick={onClose} className="flex items-center gap-2 px-4 py-3 text-gray-500 hover:bg-gray-100 rounded-xl mt-2 font-medium">
-                    <CloseIcon size={18} /> Close
-                </button>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8">
-                <div className="max-w-4xl mx-auto space-y-8">
-                    {activeTab === 'general' && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold">General Content</h2>
-                            <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Hero Subtitle</label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <input className={inputStyle} value={content.heroSubtitle.ko} onChange={e => updateContent('heroSubtitle', 'ko', e.target.value)} placeholder="KR" />
-                                        <input className={inputStyle} value={content.heroSubtitle.en} onChange={e => updateContent('heroSubtitle', 'en', e.target.value)} placeholder="EN" />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Artist Greeting</label>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <textarea className={textareaStyle} value={content.artistGreeting.ko} onChange={e => updateContent('artistGreeting', 'ko', e.target.value)} placeholder="KR" />
-                                        <textarea className={textareaStyle} value={content.artistGreeting.en} onChange={e => updateContent('artistGreeting', 'en', e.target.value)} placeholder="EN" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                <div className="p-3 bg-white border-t border-stone-100 flex flex-col gap-2 relative z-30">
+                     {/* Toggle Button */}
+                    {!showQuickQuestions && (
+                        <button 
+                            onClick={() => setShowQuickQuestions(true)}
+                            className="self-start text-[11px] font-bold text-stone-500 hover:text-black hover:bg-stone-100 px-3 py-2 rounded-2xl border border-stone-100 transition flex items-center gap-2 mb-1"
+                        >
+                            <MessageCircle size={16} className="text-stone-400" />
+                            <span>자주 묻는 질문 보기</span>
+                        </button>
                     )}
 
-                    {activeTab === 'portfolio' && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold">Portfolio Management</h2>
-                            {content.portfolio.map(album => (
-                                <div key={album.id} className="bg-white p-6 rounded-2xl border shadow-sm">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-bold text-lg uppercase text-gray-400">{album.id}</h3>
-                                        <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-500">{album.images.length} Photos</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                        <input className={inputStyle} value={album.title.ko} onChange={e => updateCollectionItem('portfolio', {...album, title: {...album.title, ko: e.target.value}})} placeholder="Title KR" />
-                                        <input className={inputStyle} value={album.title.en} onChange={e => updateCollectionItem('portfolio', {...album, title: {...album.title, en: e.target.value}})} placeholder="Title EN" />
-                                    </div>
-                                    
-                                    <div className="mb-4">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Manage Images (Drag to Reorder)</label>
-                                        <div className="grid grid-cols-4 md:grid-cols-6 gap-2 bg-gray-50 p-4 rounded-xl border border-gray-100 max-h-64 overflow-y-auto">
-                                            {album.images.map((img, idx) => (
-                                                <div 
-                                                    key={idx} 
-                                                    draggable
-                                                    onDragStart={() => setDraggedItem({ type: 'portfolio', index: idx, albumId: album.id })}
-                                                    onDragOver={(e) => e.preventDefault()}
-                                                    onDrop={() => {
-                                                        if (draggedItem?.type === 'portfolio' && draggedItem.albumId === album.id) {
-                                                            reorderPortfolioImages(album.id, draggedItem.index, idx);
-                                                            setDraggedItem(null);
-                                                        }
-                                                    }}
-                                                    className="relative aspect-square group rounded-lg overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing hover:shadow-lg transition-all"
-                                                >
-                                                    <img src={img} className="w-full h-full object-cover pointer-events-none" />
-                                                    <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition" />
-                                                    <button onClick={() => removePortfolioImage(album.id, idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition shadow-md z-10"><CloseIcon size={12}/></button>
-                                                </div>
-                                            ))}
-                                            <label className="relative aspect-square flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-black hover:bg-gray-100 transition">
-                                                <Plus size={24} className="text-gray-400" />
-                                                <span className="text-[10px] font-bold text-gray-500 mt-1">ADD PHOTO</span>
-                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => addPortfolioImage(album.id, url))} />
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {activeTab === 'packages' && (
-                        <div className="space-y-6">
-                             <h2 className="text-2xl font-bold">Packages</h2>
-                             {content.packages.map(pkg => (
-                                 <div key={pkg.id} className="bg-white p-6 rounded-2xl border shadow-sm space-y-3">
-                                     <div className="font-bold text-gray-400 uppercase text-xs">{pkg.id}</div>
-                                     <input className={inputStyle} value={pkg.title.ko} onChange={e => updateCollectionItem('packages', {...pkg, title: {...pkg.title, ko: e.target.value}})} />
-                                     <input className={inputStyle} value={pkg.price} onChange={e => updateCollectionItem('packages', {...pkg, price: e.target.value})} />
-                                     <div className="grid grid-cols-2 gap-4">
-                                         <textarea className={textareaStyle} value={pkg.features.ko.join('\n')} onChange={e => updateCollectionItem('packages', {...pkg, features: {...pkg.features, ko: e.target.value.split('\n')}})} />
-                                         <textarea className={textareaStyle} value={pkg.features.en.join('\n')} onChange={e => updateCollectionItem('packages', {...pkg, features: {...pkg.features, en: e.target.value.split('\n')}})} />
-                                     </div>
-                                 </div>
-                             ))}
-                        </div>
-                    )}
-
-                    {activeTab === 'notices' && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold">Notices</h2>
-                            {content.notices.map(n => (
-                                <div key={n.id} className="bg-white p-6 rounded-2xl border shadow-sm space-y-3">
-                                    <input className={inputStyle} value={n.title.ko} onChange={e => updateCollectionItem('notices', {...n, title: {...n.title, ko: e.target.value}})} />
-                                    <textarea className={textareaStyle} value={n.description.ko} onChange={e => updateCollectionItem('notices', {...n, description: {...n.description, ko: e.target.value}})} />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {activeTab === 'reviews' && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold">Reviews</h2>
-                            <div className="bg-white p-6 rounded-2xl border shadow-sm mb-6 bg-yellow-50/30">
-                                <h3 className="font-bold mb-4 flex items-center gap-2"><Plus size={18}/> Add New Review</h3>
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <input className={inputStyle} placeholder="Author Name" value={newReview.author} onChange={e => setNewReview({...newReview, author: e.target.value})} />
-                                    <input className={inputStyle} type="date" value={newReview.date} onChange={e => setNewReview({...newReview, date: e.target.value})} />
-                                </div>
-                                <textarea className={textareaStyle} placeholder="Review Content" value={newReview.content} onChange={e => setNewReview({...newReview, content: e.target.value})} />
-                                
-                                <div className="mt-4 mb-4">
-                                    <div className="flex gap-2 items-center mb-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase">Photos attached:</label>
-                                        <label className="px-3 py-1 bg-black text-white text-xs font-bold rounded cursor-pointer hover:bg-stone-800 flex items-center gap-1">
-                                            <Upload size={12} /> Upload Photo
-                                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => setNewReview(prev => ({...prev, photos: [...prev.photos, url]})))} />
-                                        </label>
-                                    </div>
-                                    <div className="flex gap-2 overflow-x-auto">
-                                        {newReview.photos.map((p, i) => (
-                                            <div key={i} className="relative w-16 h-16 shrink-0 group">
-                                                <img src={p} className="w-full h-full object-cover rounded border" />
-                                                <button onClick={() => setNewReview(prev => ({...prev, photos: prev.photos.filter((_, idx) => idx !== i)}))} className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-full"><CloseIcon size={10}/></button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <button 
-                                    onClick={() => {
-                                        addReview({ id: `r${Date.now()}`, email: 'admin@added', ...newReview });
-                                        setNewReview({ author: '', content: '', rating: 5, date: new Date().toISOString().split('T')[0], photos: [] });
-                                        alert('Review Added');
-                                    }}
-                                    className="w-full py-3 bg-black text-white rounded-xl font-bold hover:scale-[1.01] transition"
-                                >
-                                    Publish Review
-                                </button>
-                            </div>
-                            <div className="space-y-4">
-                                {reviews.map(r => (
-                                    <div key={r.id} className="bg-white p-4 rounded-xl border space-y-3">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <div className="font-bold">{r.author} <span className="text-gray-400 font-normal text-sm">{r.date}</span></div>
-                                                <div className="text-sm text-gray-600 mt-1">{r.content}</div>
-                                            </div>
-                                            <button onClick={() => deleteReview(r.id)} className="text-red-500 hover:bg-red-50 p-2 rounded shrink-0"><Trash2 size={18}/></button>
-                                        </div>
-                                        {/* Existing Review Photos */}
-                                        {r.photos && r.photos.length > 0 && (
-                                            <div className="flex gap-2 overflow-x-auto pt-2 border-t border-dashed mt-2">
-                                                {r.photos.map((p, i) => (
-                                                    <div key={i} className="relative w-16 h-16 shrink-0 group">
-                                                        <img src={p} className="w-full h-full object-cover rounded border" />
-                                                        <button 
-                                                            onClick={() => updateReview({...r, photos: r.photos.filter((_, idx) => idx !== i)})} 
-                                                            className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition"
-                                                        >
-                                                            <CloseIcon size={10}/>
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                                <label className="w-16 h-16 flex items-center justify-center border-2 border-dashed rounded cursor-pointer hover:bg-gray-50 shrink-0">
-                                                    <Plus size={16} className="text-gray-400"/>
-                                                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => updateReview({...r, photos: [...r.photos, url]}))} />
-                                                </label>
-                                            </div>
-                                        )}
-                                        {(!r.photos || r.photos.length === 0) && (
-                                            <label className="text-xs text-blue-500 font-bold cursor-pointer hover:underline flex items-center gap-1">
-                                                <Plus size={12}/> Add Photos
-                                                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => updateReview({...r, photos: [...(r.photos || []), url]}))} />
-                                            </label>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'schedule' && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold">Schedule Manager</h2>
-                            <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                                <CalendarView />
-                            </div>
-                        </div>
-                    )}
-                    
-                    {activeTab === 'settings' && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-bold">System Settings</h2>
-                            <div className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-                                {/* REMOVED BACKGROUND MUSIC SETTINGS AS REQUESTED */}
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">AI Context (Rules)</label>
-                                    <textarea className={textareaStyle} value={content.aiContext} onChange={e => setAIContext(e.target.value)} />
-                                </div>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <h3 className="text-xl font-bold">AI Interaction Logs</h3>
-                                <div className="bg-stone-900 rounded-2xl p-4 max-h-96 overflow-y-auto space-y-4">
-                                    {content.aiLogs && content.aiLogs.length > 0 ? content.aiLogs.map((log, i) => (
-                                        <div key={i} className="text-sm border-b border-stone-800 pb-4 last:border-0">
-                                            <div className="flex justify-between text-stone-500 text-xs mb-1">
-                                                <span>User Question</span>
-                                                <span>{log.timestamp}</span>
-                                            </div>
-                                            <div className="text-white font-medium mb-2">{log.question}</div>
-                                            <div className="text-green-400 text-xs mb-1">AI Answer</div>
-                                            <div className="text-stone-300 leading-relaxed">{log.answer}</div>
-                                        </div>
-                                    )) : (
-                                        <div className="text-stone-500 text-center py-8">No interactions recorded yet.</div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    <div className="flex gap-2">
+                        <input 
+                            className="flex-1 bg-stone-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black transition-shadow"
+                            placeholder={language === 'ko' ? "질문을 입력하세요..." : "Type a message..."}
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSend()}
+                        />
+                        <button 
+                            onClick={() => handleSend()}
+                            disabled={loading || !input.trim()}
+                            className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:scale-105 transition shadow-sm"
+                        >
+                            <Send size={18} />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-// Logic: Today resets at 07:00 KST. Increases by 1 every 23 mins from 07:00.
-// KST is UTC+9.
-const VisitorCounter = () => {
+const VisitorCounter: React.FC = () => {
     const [todayCount, setTodayCount] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
 
@@ -1512,9 +1227,159 @@ const VisitorCounter = () => {
     }, []);
 
     return (
-        <div className="flex flex-col items-center text-[10px] font-mono text-stone-400 gap-1">
+        <div className="flex flex-col items-center text-[10px] font-mono text-stone-400 gap-1 mt-8">
             <div>TODAY <span className="text-stone-900 font-bold">{todayCount}</span></div>
             <div>TOTAL <span className="text-stone-500 font-bold">{totalCount}</span></div>
+        </div>
+    );
+};
+
+const AdminPortfolio: React.FC = () => {
+    const { content, addPortfolioImage, removePortfolioImage } = useAppContext();
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, albumId: string) => {
+        if (e.target.files && e.target.files[0]) {
+            const base64 = await compressImage(e.target.files[0]);
+            addPortfolioImage(albumId, base64);
+        }
+    };
+    return (
+        <div className="space-y-8">
+            {content.portfolio.map(album => (
+                <div key={album.id} className="border p-4 rounded-xl">
+                    <h3 className="font-bold text-lg mb-4">{album.title.en} ({album.title.ko})</h3>
+                    <div className="grid grid-cols-4 md:grid-cols-6 gap-4">
+                        {album.images.map((img, idx) => (
+                            <div key={idx} className="relative group aspect-[3/4]">
+                                <img src={img} className="w-full h-full object-cover rounded-lg" alt="Portfolio" />
+                                <button onClick={() => removePortfolioImage(album.id, idx)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"><Trash2 size={12} /></button>
+                            </div>
+                        ))}
+                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 aspect-[3/4]">
+                            <Plus className="text-stone-400" />
+                            <span className="text-xs text-stone-400 mt-2">Add Photo</span>
+                            <input type="file" className="hidden" accept="image/*" onChange={(e) => handleUpload(e, album.id)} />
+                        </label>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const AdminReviews: React.FC = () => {
+    const { reviews, deleteReview } = useAppContext();
+    return (
+        <div className="space-y-4">
+             {reviews.map(r => (
+                 <div key={r.id} className="flex justify-between items-start border p-4 rounded-xl">
+                     <div>
+                         <div className="font-bold">{r.author} <span className="text-stone-400 font-normal text-sm">({r.date})</span></div>
+                         <p className="text-sm mt-1">{r.content}</p>
+                     </div>
+                     <button onClick={() => deleteReview(r.id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16} /></button>
+                 </div>
+             ))}
+        </div>
+    );
+};
+
+const AdminContentEditor: React.FC = () => {
+    const { content, updateContent } = useAppContext();
+    return (
+        <div className="space-y-6">
+            <div>
+                <label className="block text-sm font-bold mb-1">Artist Greeting (Korean)</label>
+                <textarea className="w-full p-2 border rounded" value={content.artistGreeting.ko} onChange={e => updateContent('artistGreeting', 'ko', e.target.value)} />
+            </div>
+            <div>
+                <label className="block text-sm font-bold mb-1">Artist Greeting (English)</label>
+                <textarea className="w-full p-2 border rounded" value={content.artistGreeting.en} onChange={e => updateContent('artistGreeting', 'en', e.target.value)} />
+            </div>
+        </div>
+    );
+};
+
+const AdminAIConfig: React.FC = () => {
+    const { content, setAIContext, setAIQuickQuestions } = useAppContext();
+    return (
+        <div>
+            <h3 className="font-bold mb-4">AI Context Configuration</h3>
+            <p className="text-sm text-stone-500 mb-2">Instructions for the AI Manager (hidden from users).</p>
+            <textarea className="w-full h-64 p-4 border rounded-xl font-mono text-sm" value={content.aiContext} onChange={e => setAIContext(e.target.value)} />
+            
+            <h3 className="font-bold mt-8 mb-4">Quick Questions (Buttons)</h3>
+            <p className="text-sm text-stone-500 mb-2">List of questions shown as buttons in the chat (one per line).</p>
+            <textarea 
+                className="w-full h-32 p-4 border rounded-xl font-mono text-sm" 
+                value={content.aiQuickQuestions?.join('\n') || ''} 
+                onChange={e => setAIQuickQuestions(e.target.value.split('\n').filter(q => q.trim() !== ''))} 
+            />
+
+            <h3 className="font-bold mt-8 mb-4">Recent AI Logs</h3>
+            <div className="bg-black text-white p-4 rounded-xl h-64 overflow-y-auto font-mono text-xs space-y-4">
+                {content.aiLogs?.map(log => (
+                    <div key={log.id} className="border-b border-stone-800 pb-2">
+                        <div className="text-stone-500 mb-1">{log.timestamp}</div>
+                        <div className="text-green-400">Q: {log.question}</div>
+                        <div className="text-blue-400 mt-1">A: {log.answer}</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const AdminDashboard: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    const { adminUser, loginAdmin, logoutAdmin, manualSave, storageWarning } = useAppContext();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [tab, setTab] = useState<'schedule' | 'portfolio' | 'reviews' | 'content' | 'ai'>('schedule');
+
+    if (!isOpen) return null;
+
+    if (!adminUser.isAuthenticated) {
+        return (
+            <div className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl relative">
+                    <button onClick={onClose} className="absolute top-4 right-4"><CloseIcon /></button>
+                    <h2 className="text-2xl font-bold mb-6">Admin Access</h2>
+                    <input className="w-full p-4 bg-stone-50 rounded-xl mb-4" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+                    <input className="w-full p-4 bg-stone-50 rounded-xl mb-6" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
+                    <button onClick={() => { if (!loginAdmin(email, password)) alert('Invalid credentials'); }} className="w-full bg-black text-white py-4 rounded-xl font-bold">LOGIN</button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="fixed inset-0 z-[10000] bg-white flex flex-col">
+            <div className="bg-black text-white p-4 flex justify-between items-center shrink-0">
+                <div className="font-bold flex items-center gap-4">
+                    <span>ADMIN DASHBOARD</span>
+                    {storageWarning && <span className="text-red-500 bg-white px-2 py-1 rounded text-xs">STORAGE FULL</span>}
+                </div>
+                <div className="flex items-center gap-4">
+                    <button onClick={manualSave} className="flex items-center gap-2 hover:text-stone-300"><Save size={18} /> Save</button>
+                    <button onClick={logoutAdmin} className="hover:text-stone-300">Logout</button>
+                    <button onClick={onClose}><CloseIcon /></button>
+                </div>
+            </div>
+            <div className="flex border-b shrink-0 overflow-x-auto">
+                {(['schedule', 'portfolio', 'reviews', 'content', 'ai'] as const).map(t => (
+                    <button key={t} onClick={() => setTab(t)} className={`px-6 py-4 font-bold uppercase text-sm whitespace-nowrap ${tab === t ? 'border-b-2 border-black bg-stone-50' : 'text-stone-500'}`}>
+                        {t}
+                    </button>
+                ))}
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-stone-50">
+                <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-sm p-6 min-h-full">
+                    {tab === 'schedule' && <CalendarView />}
+                    {tab === 'portfolio' && <AdminPortfolio />}
+                    {tab === 'reviews' && <AdminReviews />}
+                    {tab === 'content' && <AdminContentEditor />}
+                    {tab === 'ai' && <AdminAIConfig />}
+                </div>
+            </div>
         </div>
     );
 };
@@ -1538,7 +1403,7 @@ const AppContent: React.FC = () => {
             <Navigation />
 
             {/* Transition Wrapper */}
-            <div key={location.pathname} className="animate-fade-in">
+            <div key={location.pathname} className="animate-slide-in-right">
                 <Routes location={location}>
                     <Route path="/" element={<PortfolioPage />} />
                     <Route path="/info" element={<InfoPage />} />
@@ -1558,7 +1423,11 @@ const AppContent: React.FC = () => {
             <FloatingDock onOpenFAQ={() => setFaqOpen(true)} />
 
             <footer className="py-12 text-center border-t border-stone-100 mt-12 pb-32">
-                <h4 className="font-outfit font-bold text-xl">STILLS<span className="font-normal text-stone-400">by</span>HEUM</h4>
+                <h4 className="font-outfit text-xl flex justify-center items-center gap-1.5">
+                    <span className="font-bold">STILLS</span>
+                    <span className="font-light text-black">by</span>
+                    <span className="font-bold">HEUM</span>
+                </h4>
                 {/* Icons removed from here, now in FloatingDock */}
                 <div className="h-6" /> 
                 <VisitorCounter />

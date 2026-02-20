@@ -93,7 +93,7 @@ export const PACKAGES: PackageItem[] = [
       ko: ["180분 촬영", "원본 전체 (24시간 내)", "정밀 보정 60장 (셀렉45+작가15)", "폴라로이드 5장 현장 제공"],
       en: ["180 min Session", "All Originals (24h)", "60 Retouched (45 Select + 15 Pro)", "5 Polaroids on-site"]
     },
-    color: "bg-gradient-to-br from-amber-50 via-[#FFFBEB] to-amber-100 border border-amber-300 text-amber-900 shadow-[0_0_30px_rgba(245,158,11,0.35)] ring-1 ring-amber-200",
+    color: "bg-gradient-to-br from-amber-50 via-[#FFFBEB] to-amber-100 text-amber-900 shadow-[0_20px_60px_rgba(245,158,11,0.15)]",
     image: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=800&auto=format&fit=crop"
   }
 ];
@@ -285,7 +285,8 @@ export const INITIAL_CONTENT: ContentData = {
       "가격 정보를 알려주세요.",
       "비가 오면 촬영은 어떻게 되나요?",
       "보정은 어떻게 진행되나요?"
-  ]
+  ],
+  schedule: [] // Initialize empty schedule
 };
 
 export const DEFAULT_SLOTS = [

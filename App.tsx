@@ -1,4 +1,5 @@
 import React, { useState, createContext, useContext, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { HashRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform, MotionValue, AnimatePresence, Reorder } from 'framer-motion';
 import { Globe, User, Lock, Calendar as CalendarIcon, MessageCircle, ChevronRight, ChevronLeft, Instagram, X as CloseIcon, Star, Trash2, Plus, Play, Pause, MapPin, ArrowRight, Bot, Check, Send, Save, Menu, Smile, Download } from 'lucide-react';
@@ -349,6 +350,15 @@ const FAQWidget: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                                 <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce [animation-delay:0.2s]" />
                                 <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce [animation-delay:0.4s]" />
                             </div>
+                        </div>
+                    )}
+                    {!loading && messages.length === 1 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                            {(language === 'ko' ? ['가격이 궁금해요', '예약은 어떻게 하나요?', '위치는 어디인가요?', '촬영 소요 시간은?'] : ['What are the prices?', 'How to book?', 'Where is the location?', 'How long is the session?']).map((q, i) => (
+                                <button key={i} onClick={() => handleSend(q)} className="px-3 py-2 bg-white/50 border border-white/40 rounded-xl text-[10px] font-bold text-stone-600 hover:bg-white hover:scale-105 transition-all shadow-sm">
+                                    {q}
+                                </button>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -758,13 +768,22 @@ const AdminPage: React.FC = () => {
 };
 
 const ReviewPage: React.FC = () => {
-    const { reviews, addReview } = useAppContext();
+    const { reviews, addReview, language } = useAppContext();
     const [selectedReview, setSelectedReview] = useState<Review | null>(null);
     const [isWriting, setIsWriting] = useState(false);
     const [newReview, setNewReview] = useState({ author: '', content: '', rating: 5 });
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const [buttonPos, setButtonPos] = useState({ top: 0, left: 0, width: 0, height: 0 });
+
+    useEffect(() => {
+        if (isWriting && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setButtonPos({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        }
+    }, [isWriting]);
 
     const handleSubmit = () => {
-        if (!newReview.author || !newReview.content) return alert("Please fill in all fields");
+        if (!newReview.author || !newReview.content) return alert(language === 'ko' ? "모든 항목을 입력해주세요" : "Please fill in all fields");
         addReview({
             id: Date.now().toString(),
             author: newReview.author,
@@ -776,6 +795,8 @@ const ReviewPage: React.FC = () => {
         setIsWriting(false);
         setNewReview({ author: '', content: '', rating: 5 });
     };
+
+    const t = (en: string, ko: string) => language === 'ko' ? ko : en;
 
     return (
         <div className="min-h-screen pt-32 px-4 pb-32 max-w-6xl mx-auto font-sans">
@@ -806,7 +827,7 @@ const ReviewPage: React.FC = () => {
             </div>
 
             <div className="flex justify-center pb-12">
-                <button onClick={() => setIsWriting(true)} className="relative group hover:scale-110 transition-transform active:scale-95" aria-label="Write a review">
+                <button ref={buttonRef} onClick={() => setIsWriting(true)} className="relative group hover:scale-110 transition-transform active:scale-95" aria-label="Write a review">
                     <Star size={48} className="text-yellow-400 drop-shadow-xl" fill="currentColor" />
                     <div className="absolute inset-0 flex items-center justify-center pt-0.5">
                         <SimplePlus size={18} className="text-stone-900" />
@@ -859,62 +880,67 @@ const ReviewPage: React.FC = () => {
                     </motion.div>
                 )}
                 
-                {isWriting && (
+                {isWriting && createPortal(
                     <motion.div 
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+                        className="fixed inset-0 z-[9999] bg-black/20 backdrop-blur-[2px]"
                         onClick={() => setIsWriting(false)}
                     >
                         <motion.div 
-                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white w-full max-w-lg rounded-[2rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="absolute bg-white w-[90vw] max-w-md rounded-[2rem] p-6 shadow-2xl max-h-[70vh] overflow-y-auto"
+                            style={{ 
+                                left: `50%`,
+                                transform: 'translateX(-50%)',
+                                bottom: `calc(100vh - ${buttonPos.top}px + 20px)`
+                            }}
                             onClick={e => e.stopPropagation()}
                         >
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-2xl font-bold">Write a Review</h3>
-                                <button onClick={() => setIsWriting(false)} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><CloseIcon size={24} /></button>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold">{t('Write a Review', '리뷰 작성')}</h3>
+                                <button onClick={() => setIsWriting(false)} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><CloseIcon size={20} /></button>
                             </div>
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <div>
-                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Name</label>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">{t('Name', '이름')}</label>
                                     <input 
                                         value={newReview.author} 
                                         onChange={e => setNewReview({...newReview, author: e.target.value})}
-                                        className="w-full p-4 bg-stone-50 rounded-xl font-bold outline-none focus:ring-2 focus:ring-black transition-all"
-                                        placeholder="Your Name"
+                                        className="w-full p-3 bg-stone-50 rounded-xl font-bold outline-none focus:ring-2 focus:ring-black transition-all text-sm"
+                                        placeholder={t('Your Name', '이름을 입력하세요')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Rating</label>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">{t('Rating', '별점')}</label>
                                     <div className="flex gap-2">
                                         {[1, 2, 3, 4, 5].map(star => (
                                             <button key={star} onClick={() => setNewReview({...newReview, rating: star})} className={`${star <= newReview.rating ? 'text-yellow-400' : 'text-stone-200'} hover:scale-110 transition-transform`}>
-                                                <Star size={32} fill="currentColor" />
+                                                <Star size={28} fill="currentColor" />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Review</label>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">{t('Review', '내용')}</label>
                                     <textarea 
                                         value={newReview.content} 
                                         onChange={e => setNewReview({...newReview, content: e.target.value})}
-                                        className="w-full p-4 bg-stone-50 rounded-xl font-medium outline-none focus:ring-2 focus:ring-black h-32 resize-none transition-all"
-                                        placeholder="Share your experience..."
+                                        className="w-full p-3 bg-stone-50 rounded-xl font-medium outline-none focus:ring-2 focus:ring-black h-24 resize-none transition-all text-sm"
+                                        placeholder={t('Share your experience...', '경험을 공유해주세요...')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Photos</label>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">{t('Photos', '사진')}</label>
                                     <div className="flex flex-wrap gap-2">
                                         {newReview.photos && newReview.photos.map((p, i) => (
-                                            <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden group">
+                                            <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden group">
                                                 <img src={p} className="w-full h-full object-cover" alt="Preview" />
                                                 <button onClick={() => setNewReview({...newReview, photos: newReview.photos?.filter((_, idx) => idx !== i)})} className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <CloseIcon size={12} />
+                                                    <CloseIcon size={10} />
                                                 </button>
                                             </div>
                                         ))}
-                                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-stone-300 flex items-center justify-center cursor-pointer hover:bg-stone-50 transition-colors">
+                                        <label className="w-14 h-14 rounded-lg border-2 border-dashed border-stone-300 flex items-center justify-center cursor-pointer hover:bg-stone-50 transition-colors">
                                             <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
                                                 if (e.target.files) {
                                                     Array.from(e.target.files).forEach(file => {
@@ -926,16 +952,17 @@ const ReviewPage: React.FC = () => {
                                                     });
                                                 }
                                             }} />
-                                            <Plus size={20} className="text-stone-400" />
+                                            <Plus size={18} className="text-stone-400" />
                                         </label>
                                     </div>
                                 </div>
-                                <button onClick={handleSubmit} className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg mt-4">
-                                    Submit Review
+                                <button onClick={handleSubmit} className="w-full bg-black text-white py-3 rounded-xl font-bold text-base hover:scale-[1.02] transition-transform shadow-lg mt-2">
+                                    {t('Submit Review', '리뷰 등록')}
                                 </button>
                             </div>
                         </motion.div>
-                    </motion.div>
+                    </motion.div>,
+                    document.body
                 )}
             </AnimatePresence>
         </div>

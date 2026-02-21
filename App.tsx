@@ -22,6 +22,7 @@ interface AppContextType {
   viewingImage: string | null;
   setViewingImage: (url: string | null) => void;
   logAIInteraction: (question: string, answer: string) => void;
+  addReview: (review: Review) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -113,6 +114,14 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       setReviews(newReviews);
   };
 
+  const addReview = (review: Review) => {
+      setReviews(prev => {
+          const updated = [review, ...prev];
+          localStorage.setItem('heum_reviews', JSON.stringify(updated));
+          return updated;
+      });
+  };
+
   return (
     <AppContext.Provider value={{
       language, setLanguage, content, updateContent,
@@ -125,7 +134,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       selectedAlbum, setSelectedAlbum, viewingImage, setViewingImage,
       logAIInteraction,
       saveToLocalStorage,
-      updateReviews
+      updateReviews,
+      addReview
     } as any}>
       {children}
     </AppContext.Provider>
@@ -155,10 +165,12 @@ const ScrollToTop = () => {
 
 const HeroSection: React.FC = () => {
   return (
-    <section className="relative h-screen w-full overflow-hidden bg-white mb-12">
-        <iframe src='https://my.spline.design/distortingtypography-PrREx0Qo4PCMDVyAYxd6bmrd/' frameBorder='0' width='100%' height='100%' className="absolute inset-0 w-full h-full pointer-events-auto" title="Hero 3D Scene" />
-        {/* Increased gradient height from 40vh to 60vh for more occlusion */}
-        <div className="absolute bottom-0 left-0 w-full h-[60vh] bg-gradient-to-t from-white via-white/95 to-transparent z-10 pointer-events-none" />
+    <section className="relative h-[60vh] w-full overflow-hidden bg-white flex items-center justify-center">
+        <h1 className="flex items-baseline justify-center gap-1 tracking-tighter animate-fade-in-slow">
+            <span className="text-6xl md:text-9xl font-black font-outfit text-stone-900">STILLS</span>
+            <span className="text-6xl md:text-9xl font-light font-outfit text-stone-900">by</span>
+            <span className="text-6xl md:text-9xl font-black font-outfit text-stone-900">HEUM</span>
+        </h1>
     </section>
   );
 };
@@ -181,6 +193,23 @@ const SimpleSmile: React.FC<{ size?: number, className?: string }> = ({ size = 2
     </svg>
 );
 
+const SimplePlus: React.FC<{ size?: number, className?: string }> = ({ size = 24, className = "" }) => (
+    <svg 
+        width={size} 
+        height={size} 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="3" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        className={className}
+    >
+        <line x1="12" y1="8" x2="12" y2="16" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+    </svg>
+);
+
 const Navigation: React.FC<{ isMenuOpen: boolean; setIsMenuOpen: (isOpen: boolean) => void }> = ({ isMenuOpen, setIsMenuOpen }) => {
     const location = useLocation();
     const { content, language, setLanguage } = useAppContext();
@@ -192,14 +221,16 @@ const Navigation: React.FC<{ isMenuOpen: boolean; setIsMenuOpen: (isOpen: boolea
         setTimeout(() => setIsRotating(false), 500); // Duration of rotation
     };
 
+    const getLabel = (en: string, ko: string) => language === 'ko' ? ko : en;
+
     return (
         <>
             {/* Main Top Nav - Fixed at top */}
             <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-[8000] flex items-center justify-center w-full max-w-4xl px-4 pointer-events-none">
                 <div className="pointer-events-auto flex items-center gap-1 p-1.5 bg-white/60 backdrop-blur-xl rounded-full shadow-lg border border-white/40 font-outfit">
-                    <Link to="/" className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-tighter transition-all ${location.pathname === '/' ? 'bg-black text-white shadow-md' : 'text-stone-600 hover:bg-white/50'}`}>STILLS</Link>
-                    <Link to="/info" className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-tighter transition-all ${location.pathname === '/info' ? 'bg-black text-white shadow-md' : 'text-stone-600 hover:bg-white/50'}`}>PRODUCT</Link>
-                    <Link to="/reviews" className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-tighter transition-all ${location.pathname === '/reviews' ? 'bg-black text-white shadow-md' : 'text-stone-600 hover:bg-white/50'}`}>REVIEW</Link>
+                    <Link to="/" className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-tighter transition-all ${location.pathname === '/' ? 'bg-black text-white shadow-md' : 'text-stone-600 hover:bg-white/50'}`}>{getLabel('STILLS', '홈')}</Link>
+                    <Link to="/info" className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-tighter transition-all ${location.pathname === '/info' ? 'bg-black text-white shadow-md' : 'text-stone-600 hover:bg-white/50'}`}>{getLabel('PRODUCT', '상품')}</Link>
+                    <Link to="/reviews" className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-tighter transition-all ${location.pathname === '/reviews' ? 'bg-black text-white shadow-md' : 'text-stone-600 hover:bg-white/50'}`}>{getLabel('REVIEW', '리뷰')}</Link>
                     <button onClick={handleLanguageChange} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 transition-all text-stone-500" style={{ perspective: '1000px' }}>
                         <div className="transition-transform duration-500" style={{ transform: isRotating ? 'rotateY(360deg)' : 'rotateY(0deg)' }}>
                             <Globe size={14} />
@@ -358,7 +389,9 @@ const AdminPage: React.FC = () => {
     const { content, updateContent, saveToLocalStorage, reviews, updateReviews } = useAppContext();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [password, setPassword] = useState("");
-    const [activeTab, setActiveTab] = useState<'general' | 'packages' | 'notices' | 'portfolio' | 'reviews'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'packages' | 'notices' | 'portfolio' | 'reviews' | 'schedule'>('general');
+    const [adminCurrentMonth, setAdminCurrentMonth] = useState(new Date());
+    const [adminSelectedDate, setAdminSelectedDate] = useState<Date | null>(null);
 
     const handleLogin = () => {
         if (btoa(password) === ENCRYPTED_ADMIN_PW) setIsAuthenticated(true);
@@ -402,62 +435,131 @@ const AdminPage: React.FC = () => {
                     <div className="space-y-8">
                         <div className="bg-stone-50 p-6 rounded-2xl">
                             <h3 className="text-xl font-bold mb-4">Manage Schedule</h3>
-                            <p className="text-sm text-stone-500 mb-6">Select a date to block/unblock specific time slots.</p>
-                            {/* Simple Date Picker for Admin */}
-                            <input 
-                                type="date" 
-                                className="p-3 border rounded-xl mb-6" 
-                                onChange={(e) => {
-                                    // Just a simple way to pick a date to edit
-                                    // In a real app, a full calendar UI would be better
-                                    const date = e.target.value;
-                                    if (!date) return;
-                                    
-                                    // Check if schedule exists for this date
-                                    const existingSchedule = content.schedule?.find(s => s.date === date);
-                                    if (!existingSchedule) {
-                                        // Create new schedule entry if not exists
-                                        const newSchedule = [...(content.schedule || [])];
-                                        newSchedule.push({
-                                            date: date,
-                                            slots: DEFAULT_SLOTS.map(time => ({ id: `${date}-${time}`, time, isBooked: false, isBlocked: false }))
-                                        });
-                                        updateContent('schedule', '', newSchedule);
-                                    }
-                                }}
-                            />
+                            <p className="text-sm text-stone-500 mb-6">Select a date to block/unblock specific time slots or block the entire day.</p>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {content.schedule?.map((daySchedule, dIdx) => (
-                                    <div key={daySchedule.date} className="bg-white p-4 rounded-xl border border-stone-200">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h4 className="font-bold">{daySchedule.date}</h4>
-                                            <button onClick={() => {
-                                                const newSchedule = content.schedule.filter((_, i) => i !== dIdx);
-                                                updateContent('schedule', '', newSchedule);
-                                            }} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {daySchedule.slots.map((slot, sIdx) => (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Calendar */}
+                                <div className="bg-white p-6 rounded-2xl border border-stone-200">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <button onClick={() => setAdminCurrentMonth(new Date(adminCurrentMonth.getFullYear(), adminCurrentMonth.getMonth() - 1))} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><ChevronLeft size={20} /></button>
+                                        <h4 className="font-bold text-lg">{adminCurrentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                                        <button onClick={() => setAdminCurrentMonth(new Date(adminCurrentMonth.getFullYear(), adminCurrentMonth.getMonth() + 1))} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><ChevronRight size={20} /></button>
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-2 mb-4">
+                                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+                                            <div key={day} className="text-center text-xs font-bold text-stone-400">{day}</div>
+                                        ))}
+                                        {Array.from({ length: new Date(adminCurrentMonth.getFullYear(), adminCurrentMonth.getMonth(), 1).getDay() }).map((_, i) => (
+                                            <div key={`empty-${i}`} />
+                                        ))}
+                                        {Array.from({ length: new Date(adminCurrentMonth.getFullYear(), adminCurrentMonth.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                                            const date = new Date(adminCurrentMonth.getFullYear(), adminCurrentMonth.getMonth(), i + 1);
+                                            const isSelected = adminSelectedDate?.toDateString() === date.toDateString();
+                                            
+                                            const year = date.getFullYear();
+                                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                                            const day = String(date.getDate()).padStart(2, '0');
+                                            const formattedDate = `${year}-${month}-${day}`;
+                                            const daySchedule = content.schedule?.find(s => s.date === formattedDate);
+                                            const hasBlockedSlots = daySchedule?.slots.some(s => s.isBlocked);
+                                            const isFullyBlocked = daySchedule?.slots.every(s => s.isBlocked) && daySchedule?.slots.length > 0;
+
+                                            return (
                                                 <button 
-                                                    key={slot.id}
+                                                    key={i} 
                                                     onClick={() => {
-                                                        const newSchedule = [...content.schedule];
-                                                        newSchedule[dIdx].slots[sIdx].isBlocked = !newSchedule[dIdx].slots[sIdx].isBlocked;
-                                                        updateContent('schedule', '', newSchedule);
+                                                        setAdminSelectedDate(date);
+                                                        const existingSchedule = content.schedule?.find(s => s.date === formattedDate);
+                                                        if (!existingSchedule) {
+                                                            const newSchedule = [...(content.schedule || [])];
+                                                            newSchedule.push({
+                                                                date: formattedDate,
+                                                                slots: DEFAULT_SLOTS.map(time => ({ id: `${formattedDate}-${time}`, time, isBooked: false, isBlocked: false }))
+                                                            });
+                                                            updateContent('schedule', '', newSchedule);
+                                                        }
                                                     }}
-                                                    className={`text-xs py-2 rounded-lg font-bold transition-colors ${
-                                                        slot.isBlocked 
-                                                        ? 'bg-red-100 text-red-600 border border-red-200' 
-                                                        : 'bg-stone-50 text-stone-600 border border-stone-100 hover:bg-stone-100'
+                                                    className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold transition-all relative ${
+                                                        isSelected ? 'bg-black text-white shadow-md scale-110' : 'hover:bg-stone-100 text-stone-700'
                                                     }`}
                                                 >
-                                                    {slot.time}
+                                                    <span>{i + 1}</span>
+                                                    {isFullyBlocked ? (
+                                                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-0.5 absolute bottom-1"></div>
+                                                    ) : hasBlockedSlots ? (
+                                                        <div className="w-1.5 h-1.5 bg-orange-400 rounded-full mt-0.5 absolute bottom-1"></div>
+                                                    ) : null}
                                                 </button>
-                                            ))}
-                                        </div>
+                                            );
+                                        })}
                                     </div>
-                                ))}
+                                </div>
+
+                                {/* Time Slots */}
+                                <div className="bg-white p-6 rounded-2xl border border-stone-200">
+                                    {adminSelectedDate ? (
+                                        <>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h4 className="font-bold text-lg">{adminSelectedDate.toLocaleDateString()}</h4>
+                                                <button 
+                                                    onClick={() => {
+                                                        const year = adminSelectedDate.getFullYear();
+                                                        const month = String(adminSelectedDate.getMonth() + 1).padStart(2, '0');
+                                                        const day = String(adminSelectedDate.getDate()).padStart(2, '0');
+                                                        const formattedDate = `${year}-${month}-${day}`;
+                                                        const dIdx = content.schedule?.findIndex(s => s.date === formattedDate);
+                                                        
+                                                        if (dIdx !== undefined && dIdx !== -1) {
+                                                            const newSchedule = [...content.schedule];
+                                                            const allBlocked = newSchedule[dIdx].slots.every(s => s.isBlocked);
+                                                            newSchedule[dIdx].slots = newSchedule[dIdx].slots.map(s => ({ ...s, isBlocked: !allBlocked }));
+                                                            updateContent('schedule', '', newSchedule);
+                                                        }
+                                                    }}
+                                                    className="text-xs font-bold text-stone-500 hover:text-black transition-colors"
+                                                >
+                                                    Toggle All Day
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {(() => {
+                                                    const year = adminSelectedDate.getFullYear();
+                                                    const month = String(adminSelectedDate.getMonth() + 1).padStart(2, '0');
+                                                    const day = String(adminSelectedDate.getDate()).padStart(2, '0');
+                                                    const formattedDate = `${year}-${month}-${day}`;
+                                                    const daySchedule = content.schedule?.find(s => s.date === formattedDate);
+                                                    const dIdx = content.schedule?.findIndex(s => s.date === formattedDate);
+
+                                                    if (!daySchedule) return <div className="col-span-3 text-center text-stone-400 text-sm py-8">No slots available. Click date again to initialize.</div>;
+
+                                                    return daySchedule.slots.map((slot, sIdx) => (
+                                                        <button 
+                                                            key={slot.id}
+                                                            onClick={() => {
+                                                                const newSchedule = [...content.schedule];
+                                                                newSchedule[dIdx!].slots[sIdx].isBlocked = !newSchedule[dIdx!].slots[sIdx].isBlocked;
+                                                                updateContent('schedule', '', newSchedule);
+                                                            }}
+                                                            className={`py-3 rounded-xl text-sm font-bold transition-all ${
+                                                                slot.isBlocked 
+                                                                ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' 
+                                                                : 'bg-stone-50 text-stone-600 border border-stone-200 hover:bg-stone-100 hover:border-stone-300'
+                                                            }`}
+                                                        >
+                                                            {slot.time}
+                                                        </button>
+                                                    ));
+                                                })()}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-stone-400 space-y-4 py-12">
+                                            <CalendarIcon size={48} className="opacity-20" />
+                                            <p className="text-sm font-medium">Select a date to manage slots</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -471,6 +573,29 @@ const AdminPage: React.FC = () => {
                                 <div><label className="block text-xs font-bold mb-2 uppercase text-stone-400">Title (KO)</label><input value={content.heroTitle.ko} onChange={(e) => updateContent('heroTitle', 'ko', e.target.value)} className="w-full p-3 border rounded-xl bg-stone-50" /></div>
                                 <div><label className="block text-xs font-bold mb-2 uppercase text-stone-400">Subtitle (EN)</label><input value={content.heroSubtitle.en} onChange={(e) => updateContent('heroSubtitle', 'en', e.target.value)} className="w-full p-3 border rounded-xl bg-stone-50" /></div>
                                 <div><label className="block text-xs font-bold mb-2 uppercase text-stone-400">Subtitle (KO)</label><input value={content.heroSubtitle.ko} onChange={(e) => updateContent('heroSubtitle', 'ko', e.target.value)} className="w-full p-3 border rounded-xl bg-stone-50" /></div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold mb-4">Artist Section</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                                <div><label className="block text-xs font-bold mb-2 uppercase text-stone-400">Greeting (EN)</label><input value={content.artistGreeting?.en || ''} onChange={(e) => updateContent('artistGreeting', 'en', e.target.value)} className="w-full p-3 border rounded-xl bg-stone-50" /></div>
+                                <div><label className="block text-xs font-bold mb-2 uppercase text-stone-400">Greeting (KO)</label><input value={content.artistGreeting?.ko || ''} onChange={(e) => updateContent('artistGreeting', 'ko', e.target.value)} className="w-full p-3 border rounded-xl bg-stone-50" /></div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold mb-2 uppercase text-stone-400">Artist Photo</label>
+                                <div className="flex items-center gap-4">
+                                    {content.artistPhoto && <img src={content.artistPhoto} className="w-20 h-20 object-cover rounded-xl" alt="Artist" />}
+                                    <label className="cursor-pointer bg-stone-100 hover:bg-stone-200 px-4 py-2 rounded-xl text-sm font-bold transition-colors">
+                                        Upload Photo
+                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                            if (e.target.files?.[0]) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => updateContent('artistPhoto', '', reader.result as string);
+                                                reader.readAsDataURL(e.target.files[0]);
+                                            }
+                                        }} />
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         <div>
@@ -524,20 +649,22 @@ const AdminPage: React.FC = () => {
                                             </button>
                                         </Reorder.Item>
                                     ))}
-                                    <div className="aspect-[3/4] rounded-lg border-2 border-dashed border-stone-300 flex items-center justify-center cursor-pointer hover:bg-stone-100 transition-colors" onClick={() => {
-                                        const url = prompt("Enter image URL");
-                                        if (url) {
-                                            if (album.images.includes(url)) {
-                                                alert("This image already exists in the album.");
-                                                return;
+                                    <label className="aspect-[3/4] rounded-lg border-2 border-dashed border-stone-300 flex items-center justify-center cursor-pointer hover:bg-stone-100 transition-colors">
+                                        <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
+                                            if (e.target.files) {
+                                                Array.from(e.target.files).forEach(file => {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        const newPortfolio = [...content.portfolio];
+                                                        newPortfolio[idx].images.push(reader.result as string);
+                                                        updateContent('portfolio', '', newPortfolio);
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                });
                                             }
-                                            const newPortfolio = [...content.portfolio];
-                                            newPortfolio[idx].images.push(url);
-                                            updateContent('portfolio', '', newPortfolio);
-                                        }
-                                    }}>
+                                        }} />
                                         <Plus size={24} className="text-stone-400" />
-                                    </div>
+                                    </label>
                                 </Reorder.Group>
                             </div>
                         ))}
@@ -631,13 +758,32 @@ const AdminPage: React.FC = () => {
 };
 
 const ReviewPage: React.FC = () => {
-    const { reviews } = useAppContext();
+    const { reviews, addReview } = useAppContext();
     const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+    const [isWriting, setIsWriting] = useState(false);
+    const [newReview, setNewReview] = useState({ author: '', content: '', rating: 5 });
+
+    const handleSubmit = () => {
+        if (!newReview.author || !newReview.content) return alert("Please fill in all fields");
+        addReview({
+            id: Date.now().toString(),
+            author: newReview.author,
+            content: newReview.content,
+            rating: newReview.rating,
+            date: new Date().toISOString().split('T')[0],
+            photos: []
+        });
+        setIsWriting(false);
+        setNewReview({ author: '', content: '', rating: 5 });
+    };
 
     return (
         <div className="min-h-screen pt-32 px-4 pb-32 max-w-6xl mx-auto font-sans">
-            <h2 className="text-6xl font-black mb-16 text-center tracking-tighter uppercase font-outfit text-stone-900">Reviews</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex justify-center mb-16 px-2">
+                <h2 className="text-6xl font-black tracking-tighter uppercase font-outfit text-stone-900 leading-none text-center">Reviews</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
                 {reviews.map(r => (
                     <div key={r.id} onClick={() => setSelectedReview(r)} className="p-6 bg-stone-50 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all duration-500 border border-white group cursor-pointer">
                         <div className="flex justify-between items-start mb-4">
@@ -657,6 +803,15 @@ const ReviewPage: React.FC = () => {
                         )}
                     </div>
                 ))}
+            </div>
+
+            <div className="flex justify-center pb-12">
+                <button onClick={() => setIsWriting(true)} className="relative group hover:scale-110 transition-transform active:scale-95" aria-label="Write a review">
+                    <Star size={48} className="text-yellow-400 drop-shadow-xl" fill="currentColor" />
+                    <div className="absolute inset-0 flex items-center justify-center pt-0.5">
+                        <SimplePlus size={18} className="text-stone-900" />
+                    </div>
+                </button>
             </div>
 
             <AnimatePresence>
@@ -699,6 +854,85 @@ const ReviewPage: React.FC = () => {
                                     <p className="text-stone-700 leading-loose whitespace-pre-line font-medium">{selectedReview.content}</p>
                                     <p className="text-right text-xs font-bold text-stone-400 mt-4 font-mono">{selectedReview.date}</p>
                                 </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+                
+                {isWriting && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+                        onClick={() => setIsWriting(false)}
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white w-full max-w-lg rounded-[2rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-bold">Write a Review</h3>
+                                <button onClick={() => setIsWriting(false)} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><CloseIcon size={24} /></button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Name</label>
+                                    <input 
+                                        value={newReview.author} 
+                                        onChange={e => setNewReview({...newReview, author: e.target.value})}
+                                        className="w-full p-4 bg-stone-50 rounded-xl font-bold outline-none focus:ring-2 focus:ring-black transition-all"
+                                        placeholder="Your Name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Rating</label>
+                                    <div className="flex gap-2">
+                                        {[1, 2, 3, 4, 5].map(star => (
+                                            <button key={star} onClick={() => setNewReview({...newReview, rating: star})} className={`${star <= newReview.rating ? 'text-yellow-400' : 'text-stone-200'} hover:scale-110 transition-transform`}>
+                                                <Star size={32} fill="currentColor" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Review</label>
+                                    <textarea 
+                                        value={newReview.content} 
+                                        onChange={e => setNewReview({...newReview, content: e.target.value})}
+                                        className="w-full p-4 bg-stone-50 rounded-xl font-medium outline-none focus:ring-2 focus:ring-black h-32 resize-none transition-all"
+                                        placeholder="Share your experience..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 mb-1 ml-1">Photos</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {newReview.photos && newReview.photos.map((p, i) => (
+                                            <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden group">
+                                                <img src={p} className="w-full h-full object-cover" alt="Preview" />
+                                                <button onClick={() => setNewReview({...newReview, photos: newReview.photos?.filter((_, idx) => idx !== i)})} className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <CloseIcon size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <label className="w-16 h-16 rounded-lg border-2 border-dashed border-stone-300 flex items-center justify-center cursor-pointer hover:bg-stone-50 transition-colors">
+                                            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
+                                                if (e.target.files) {
+                                                    Array.from(e.target.files).forEach(file => {
+                                                        const reader = new FileReader();
+                                                        reader.onloadend = () => {
+                                                            setNewReview(prev => ({ ...prev, photos: [...(prev.photos || []), reader.result as string] }));
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    });
+                                                }
+                                            }} />
+                                            <Plus size={20} className="text-stone-400" />
+                                        </label>
+                                    </div>
+                                </div>
+                                <button onClick={handleSubmit} className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:scale-[1.02] transition-transform shadow-lg mt-4">
+                                    Submit Review
+                                </button>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -1360,6 +1594,23 @@ const AlbumDetail: React.FC = () => {
     );
 };
 
+const ArtistSection: React.FC = () => {
+    const { content, language } = useAppContext();
+    return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-24 md:py-32 w-full">
+            <div className="relative rounded-[2rem] md:rounded-[3rem] overflow-hidden aspect-[4/5] md:aspect-[21/9] shadow-2xl group">
+                <img src={content.artistPhoto || "https://images.unsplash.com/photo-1554046920-90dc59f4e7fed?q=80&w=1200&auto=format&fit=crop"} alt="Artist" className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-8 md:p-16">
+                    <h2 className="text-white text-4xl md:text-6xl font-black mb-4 font-outfit tracking-tighter">HEUM</h2>
+                    <p className="text-white/90 text-lg md:text-2xl max-w-2xl font-medium leading-relaxed">
+                        {content.artistGreeting?.[language] || "Hello, I am Heum. Capturing fleeting moments into eternity."}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
     const { content } = useAppContext();
     const [splash, setSplash] = useState(true);
@@ -1417,11 +1668,11 @@ const AppContent: React.FC = () => {
                             <Route path="/" element={
                                 <div className="min-h-screen bg-white pb-60">
                                     <HeroSection />
-                                    {/* Reduced curvature for consistency */}
-                                    <div className="flex flex-col gap-0 -mt-72 relative z-10 bg-white rounded-t-[4rem] shadow-[0_-50px_120px_rgba(0,0,0,0.12)] pt-56">
+                                    <div className="flex flex-col gap-0 relative z-10 bg-white">
                                         {content.portfolio.map((p, i) => (
                                             <PortfolioStrip key={p.id} album={p} duration={[90,60,75,50][i] || 60} />
                                         ))}
+                                        <ArtistSection />
                                     </div>
                                 </div>
                             } />

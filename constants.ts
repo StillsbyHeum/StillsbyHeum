@@ -111,6 +111,7 @@ export const INITIAL_CONTENT: ContentData = {
     ko: "안녕하세요, 흠입니다. 찰나의 순간을 영원으로 남겨드립니다.",
     en: "Hello, I am Heum. Capturing fleeting moments into eternity."
   },
+  artistPhoto: "https://images.unsplash.com/photo-1554046920-90dc59f4e7fed?q=80&w=1200&auto=format&fit=crop",
   worksTitle: {
     ko: "포트폴리오",
     en: "Portfolio"

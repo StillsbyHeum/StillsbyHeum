@@ -79,6 +79,7 @@ export interface ContentData {
   heroTitle: { ko: string; en: string };
   heroSubtitle: { ko: string; en: string };
   artistGreeting: { ko: string; en: string };
+  artistPhoto: string;
   worksTitle: { ko: string; en: string };
   worksSubtitle: { ko: string; en: string };
   pricingTitle: { ko: string; en: string };

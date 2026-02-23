@@ -46,9 +46,10 @@ export const NOTICES: NoticeItem[] = [
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
-  { id: '/', ko: 'STILLS', en: 'STILLS' },
-  { id: '/info', ko: 'PRODUCT', en: 'PRODUCT' },
-  { id: '/contact', ko: 'BOOKING', en: 'BOOKING' }
+  { id: '/', ko: '홈', en: 'STILLS' },
+  { id: '/info', ko: '상품', en: 'PRODUCT' },
+  { id: '/reviews', ko: '리뷰', en: 'REVIEW' },
+  { id: '/faq', ko: 'FAQ', en: 'FAQ' }
 ];
 
 export const PACKAGES: PackageItem[] = [
@@ -82,7 +83,7 @@ export const PACKAGES: PackageItem[] = [
       ko: ["120분 촬영", "원본 전체 (24시간 내)", "정밀 보정 40장 (셀렉30+작가10)", "폴라로이드 3장 현장 제공"],
       en: ["120 min Session", "All Originals (24h)", "40 Retouched (30 Select + 10 Pro)", "3 Polaroids on-site"]
     },
-    color: "bg-stone-900 text-stone-50 border border-black",
+    color: "bg-stone-100 text-stone-900 border border-stone-300",
     image: "https://images.unsplash.com/photo-1511285560982-1356c11d4606?q=80&w=800&auto=format&fit=crop"
   },
   {
@@ -219,6 +220,13 @@ export const INITIAL_CONTENT: ContentData = {
         "https://images.unsplash.com/photo-1627556704290-2b1f5853bf78?q=80&w=800&auto=format&fit=crop"
       ]
     }
+  ],
+  homePortfolioImages: [
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
   ],
   faqs: [
     {

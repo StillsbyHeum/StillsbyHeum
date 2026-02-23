@@ -91,6 +91,7 @@ export interface ContentData {
   collageImages: string[];
   fontTheme: 'modern' | 'serif';
   portfolio: PortfolioAlbum[];
+  homePortfolioImages: string[];
   faqs: FAQItem[];
   backgroundMusicUrl: string;
   meetingPoints: MeetingPoint[];

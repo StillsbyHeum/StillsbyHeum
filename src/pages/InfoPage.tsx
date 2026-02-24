@@ -13,11 +13,11 @@ const InfoPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.5 }}
-            className="min-h-screen pt-32 pb-32 w-full px-4"
+            className="min-h-screen pt-40 pb-32 w-full px-6 max-w-[1800px] mx-auto"
         >
-             <section className="mb-32 max-w-6xl mx-auto">
-                <h2 className="text-6xl font-black mb-16 text-center uppercase tracking-tighter font-outfit text-stone-900 dark:text-stone-100">PRODUCTS</h2>
-                <div className="flex flex-col gap-6">
+             <section className="mb-40">
+                <h2 className="text-huge mb-20">PRODUCTS</h2>
+                <div className="flex flex-col gap-8 md:gap-16">
                     {content.packages.map((pkg) => (
                         <ProductCard 
                             key={pkg.id} 
@@ -29,13 +29,13 @@ const InfoPage: React.FC = () => {
                 </div>
              </section>
              
-             <section className="max-w-6xl mx-auto px-4 mt-32">
-                 <h2 className="text-6xl font-black mb-16 text-center uppercase tracking-tighter font-outfit text-stone-900 dark:text-stone-100">Protocol</h2>
-                 <div className="space-y-8">
+             <section className="mt-40">
+                 <h2 className="text-editorial-h1 mb-20">PROTOCOL</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
                      {content.notices.map(n => (
-                         <div key={n.id} className="border-l-4 border-stone-200 dark:border-stone-800 pl-6 group">
-                             <h4 className="font-black text-xl mb-2 text-stone-900 dark:text-stone-100 group-hover:text-black dark:group-hover:text-white transition-colors">{n.title[language]}</h4>
-                             <p className="text-stone-500 dark:text-stone-400 text-xs leading-loose whitespace-pre-line font-bold group-hover:text-stone-700 dark:group-hover:text-stone-300 transition-colors">{n.description[language]}</p>
+                         <div key={n.id} className="border-t border-black/10 dark:border-white/10 pt-6">
+                             <h4 className="text-editorial-h3 mb-4">{n.title[language]}</h4>
+                             <p className="text-editorial-body text-black/70 dark:text-white/70 whitespace-pre-line">{n.description[language]}</p>
                          </div>
                      ))}
                  </div>

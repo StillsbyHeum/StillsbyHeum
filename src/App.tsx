@@ -14,7 +14,6 @@ import LondonTime from './components/LondonTime';
 import ThemeToggle from './components/ThemeToggle';
 import LoadingSpinner from './components/LoadingSpinner';
 import EditModeControls from './components/admin/EditModeControls';
-import TempAdminButton from './components/TempAdminButton';
 
 // Lazy load pages for performance optimization
 const InfoPage = lazy(() => import('./pages/InfoPage'));
@@ -59,35 +58,33 @@ const AppContent: React.FC = () => {
     };
 
     return (
-        <div className="font-['Asta_Sans',sans-serif] text-stone-900 bg-white dark:bg-stone-950 dark:text-stone-50 min-h-screen relative selection:bg-black selection:text-white transition-colors duration-500">
+        <div className="font-['Helvetica_Neue',Helvetica,Arial,sans-serif] text-black bg-white dark:bg-[#050505] dark:text-white min-h-screen relative selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-500">
             {splash && <SplashScreen onFinish={handleFinish} isFinishing={finishing} />}
             
             {contentReady && (
-                <header className="w-full bg-white dark:bg-stone-950 pt-6 px-6 flex flex-col md:flex-row items-center justify-between gap-4 z-50 relative">
-                    <div className="flex items-center gap-4 self-start md:self-center">
+                <header className="fixed top-0 left-0 w-full p-6 flex items-start justify-between z-50 mix-blend-difference text-white pointer-events-none">
+                    <div className="flex flex-col gap-1 pointer-events-auto">
                         <LondonTime />
                         <ThemeToggle />
                     </div>
-                    <div className="w-full md:w-auto flex justify-center">
+                    <div className="pointer-events-auto">
                         <Navigation isMenuOpen={isMenuOpen} setIsMenuOpen={setIsMenuOpen} />
                     </div>
-                    <div className="hidden md:block w-[120px]" /> {/* Spacer for visual balance */}
                 </header>
             )}
 
             <div className={`transition-all duration-[2000ms] ${contentReady ? 'opacity-100 animate-fade-in-slow' : 'opacity-0'}`}>
                 <ScrollToTop />
                 <EditModeControls />
-                <TempAdminButton />
                 
-                <div className="relative z-10 bg-white dark:bg-stone-950 rounded-b-[4rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden min-h-screen pb-20 transition-colors duration-500">
+                <div className="relative z-10 bg-white dark:bg-[#050505] min-h-screen transition-colors duration-500">
                     <div key={location.pathname} className={direction === 'right' ? 'animate-slide-in-right' : 'animate-slide-in-left'}>
                         <Suspense fallback={<LoadingSpinner />}>
                             <Routes location={location}>
                                 <Route path="/" element={
-                                    <div className="min-h-screen bg-white dark:bg-stone-950 pb-60 pt-10">
+                                    <div className="min-h-screen bg-white dark:bg-[#050505]">
                                         <FlipClockPortfolio />
-                                        <div className="flex flex-col gap-0 relative z-10 bg-white dark:bg-stone-950">
+                                        <div className="flex flex-col gap-0 relative z-10 bg-white dark:bg-[#050505]">
                                             <ArtistSection />
                                         </div>
                                     </div>
@@ -98,8 +95,8 @@ const AppContent: React.FC = () => {
                                 <Route path="/faq" element={<FAQPage />} />
                                 <Route path="/heum-admin-secure" element={<AdminPage />} />
                                 <Route path="*" element={
-                                    <div className="min-h-screen flex items-center justify-center bg-stone-50">
-                                        <h1 className="text-4xl font-bold text-stone-300">404</h1>
+                                    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#050505]">
+                                        <h1 className="text-huge">404</h1>
                                     </div>
                                 } />
                             </Routes>
@@ -107,12 +104,13 @@ const AppContent: React.FC = () => {
                     </div>
                 </div>
                 
-                <footer className="relative z-0 py-40 text-center -mt-40 pt-60 pb-60 bg-black text-white">
-                    <h1 className="flex items-baseline justify-center gap-1 tracking-tighter mb-12">
-                        <span className="text-4xl md:text-6xl font-extrabold font-outfit text-white">STILLS</span>
-                        <span className="text-4xl md:text-6xl font-light font-outfit text-white">by</span>
-                        <span className="text-4xl md:text-6xl font-extrabold font-outfit text-white">HEUM</span>
-                    </h1>
+                <footer className="relative z-0 py-20 px-6 bg-white dark:bg-[#050505] border-t border-black/10 dark:border-white/10 flex flex-col md:flex-row justify-between items-end gap-10">
+                    <div>
+                        <h1 className="text-editorial-h2 mb-2">
+                            STILLS BY HEUM
+                        </h1>
+                        <p className="text-editorial-micro text-black/50 dark:text-white/50">© {new Date().getFullYear()} ALL RIGHTS RESERVED.</p>
+                    </div>
                     <FloatingDock onOpenFAQ={() => setFaqOpen(true)} onToggleMenu={() => setIsMenuOpen(!isMenuOpen)} />
                 </footer>
             </div>

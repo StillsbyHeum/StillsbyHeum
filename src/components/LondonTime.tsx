@@ -22,8 +22,8 @@ const LondonTime: React.FC = () => {
     }, []);
 
     return (
-        <div className="text-[10px] font-mono tracking-widest opacity-60">
-            LDN {time}
+        <div className="text-editorial-micro opacity-70">
+            LONDON {time}
         </div>
     );
 };

@@ -60,63 +60,24 @@ const GridPortfolio: React.FC = () => {
 // [Mobile Component] Horizontal 3D Cover Flow
 const MobileCoverFlow: React.FC<{ images: string[] }> = ({ images }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const { scrollX } = useScroll({ container: containerRef });
-    const [centerOffset, setCenterOffset] = useState(0);
-
-    // Drag to scroll logic
-    const [isDragging, setIsDragging] = useState(false);
-    const [startX, setStartX] = useState(0);
-    const [scrollLeft, setScrollLeft] = useState(0);
-
-    useEffect(() => {
-        if (containerRef.current) {
-            setCenterOffset(containerRef.current.offsetWidth / 2);
-        }
-    }, []);
-
-    const onMouseDown = (e: React.MouseEvent) => {
-        if (!containerRef.current) return;
-        setIsDragging(true);
-        setStartX(e.pageX - containerRef.current.offsetLeft);
-        setScrollLeft(containerRef.current.scrollLeft);
-    };
-
-    const onMouseLeave = () => {
-        setIsDragging(false);
-    };
-
-    const onMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    const onMouseMove = (e: React.MouseEvent) => {
-        if (!isDragging || !containerRef.current) return;
-        e.preventDefault();
-        const x = e.pageX - containerRef.current.offsetLeft;
-        const walk = (x - startX) * 2; // Scroll-fast
-        containerRef.current.scrollLeft = scrollLeft - walk;
-    };
+    const { scrollXProgress } = useScroll({ container: containerRef });
 
     return (
         <div 
             ref={containerRef}
-            className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-[50vw] py-10 w-full h-full items-center scrollbar-hide cursor-grab active:cursor-grabbing"
+            className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-[50vw] py-10 w-full h-full items-center scrollbar-hide"
             style={{ 
                 perspective: `${CONFIG.PERSPECTIVE}px`,
                 transformStyle: 'preserve-3d'
             }}
-            onMouseDown={onMouseDown}
-            onMouseLeave={onMouseLeave}
-            onMouseUp={onMouseUp}
-            onMouseMove={onMouseMove}
         >
             {images.map((src, i) => (
                 <MobileCoverFlowItem 
                     key={i} 
                     src={src} 
                     index={i} 
-                    scrollX={scrollX} 
-                    centerOffset={centerOffset} 
+                    total={images.length}
+                    scrollXProgress={scrollXProgress} 
                 />
             ))}
         </div>
@@ -126,49 +87,43 @@ const MobileCoverFlow: React.FC<{ images: string[] }> = ({ images }) => {
 const MobileCoverFlowItem: React.FC<{ 
     src: string; 
     index: number; 
-    scrollX: MotionValue<number>; 
-    centerOffset: number;
-}> = ({ src, index, scrollX, centerOffset }) => {
+    total: number;
+    scrollXProgress: MotionValue<number>; 
+}> = ({ src, index, total, scrollXProgress }) => {
     const itemRef = useRef<HTMLDivElement>(null);
-    // Approximate position based on index and fixed width/gap
-    // A more robust way is using useTransform with input range based on index * (width + gap)
     
     const itemWidth = CONFIG.MOBILE.ITEM_WIDTH;
-    const gap = CONFIG.MOBILE.GAP;
-    const itemCenter = index * (itemWidth + gap) + (itemWidth / 2);
-
-    // Calculate distance from center of viewport
-    // We transform scrollX to a value representing "distance from center" for this item
-    const distance = useTransform(scrollX, (x) => {
-        // When x is such that this item is in center: x = itemCenter - centerOffset
-        const containerCenter = x + centerOffset;
-        return containerCenter - itemCenter;
+    
+    // Calculate the normalized position of this item (0 to 1)
+    const normalizedPosition = index / Math.max(1, total - 1);
+    
+    // Calculate distance from center based on scroll progress
+    const distance = useTransform(scrollXProgress, (progress) => {
+        return (progress - normalizedPosition) * 2; // -2 to 2 range roughly
     });
 
-    // Transform distance to rotation and z-index
-    // Range: [-itemWidth, 0, itemWidth] -> [-45deg, 0deg, 45deg]
     const rotateY = useTransform(distance, 
-        [-itemWidth, 0, itemWidth], 
+        [-1, 0, 1], 
         [CONFIG.MOBILE.ROTATE_Y, 0, -CONFIG.MOBILE.ROTATE_Y]
     );
 
     const translateZ = useTransform(distance,
-        [-itemWidth, 0, itemWidth],
+        [-1, 0, 1],
         [CONFIG.MOBILE.DEPTH, CONFIG.MOBILE.TRANSLATE_Z, CONFIG.MOBILE.DEPTH]
     );
 
     const opacity = useTransform(distance,
-        [-itemWidth, 0, itemWidth],
+        [-1, 0, 1],
         [CONFIG.MOBILE.OPACITY_SIDE, 1, CONFIG.MOBILE.OPACITY_SIDE]
     );
 
     const blur = useTransform(distance,
-        [-itemWidth, 0, itemWidth],
+        [-1, 0, 1],
         [CONFIG.MOBILE.BLUR_SIDE, 0, CONFIG.MOBILE.BLUR_SIDE]
     );
 
     const grayscale = useTransform(distance,
-        [-itemWidth, 0, itemWidth],
+        [-1, 0, 1],
         [1, 0, 1]
     );
 

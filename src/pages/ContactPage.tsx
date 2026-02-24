@@ -57,49 +57,55 @@ const ContactPage: React.FC = () => {
         const krwDeposit = krwPrice * 0.1;
 
         // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'https://formspree.io/f/xzzzdnqk'; // Replace with actual ID
-        
-        const data = {
-            ...formData,
-            date: selectedDate?.toLocaleDateString(),
-            times: selectedTimes.join(', '),
-            locations: selectedLocations.join(', '),
-            product: selectedProduct,
-            language,
-            likedPhotos: likedPhotos.join('\n')
-        };
+        try {
+            const data = {
+                ...formData,
+                date: selectedDate?.toLocaleDateString(),
+                times: selectedTimes.join(', '),
+                locations: selectedLocations.join(', '),
+                product: selectedProduct,
+                language,
+                likedPhotos: likedPhotos.join('\n')
+            };
 
-        Object.entries(data).forEach(([key, value]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = String(value);
-            form.appendChild(input);
-        });
+            const response = await fetch('https://formspree.io/f/xzzzdnqk', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
 
-        document.body.appendChild(form);
-        form.submit();
+            if (response.ok) {
+                alert(language === 'ko' ? '예약이 성공적으로 접수되었습니다!' : 'Booking successfully submitted!');
+            } else {
+                alert(language === 'ko' ? '예약 접수 중 오류가 발생했습니다.' : 'Error submitting booking.');
+            }
+        } catch (error) {
+            console.error('Error submitting form:', error);
+            alert(language === 'ko' ? '예약 접수 중 오류가 발생했습니다.' : 'Error submitting booking.');
+        }
+
         setIsSubmitting(false);
+        setShowConfirmation(false);
+        setStep(1);
     };
 
     return (
-        <div className="min-h-screen pt-32 px-4 pb-32 max-w-7xl mx-auto">
-            <div className="mb-12">
-                <h2 className="text-6xl md:text-8xl font-black mb-4 uppercase tracking-tighter">
-                    {language === 'ko' ? '예약하기' : 'Booking'}
+        <div className="min-h-screen pt-40 px-6 pb-32 max-w-[1800px] mx-auto font-sans">
+            <div className="mb-32">
+                <h2 className="text-huge mb-16">
+                    {language === 'ko' ? 'BOOKING' : 'BOOKING'}
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex gap-4">
                     {[1, 2, 3, 4, 5, 6].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-500 ${i <= step ? 'bg-black' : 'bg-stone-200'}`} />
+                        <div key={i} className={`h-px flex-1 transition-all duration-500 ${i <= step ? 'bg-black dark:bg-white' : 'bg-black/10 dark:bg-white/10'}`} />
                     ))}
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-[600px]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 min-h-[600px]">
                 <div className="lg:col-span-2 h-full">
                     <AnimatePresence mode="wait">
                         {step === 1 && (
@@ -164,28 +170,28 @@ const ContactPage: React.FC = () => {
                     </AnimatePresence>
                 </div>
 
-                <div className="hidden lg:block bg-stone-50 dark:bg-stone-900 p-8 rounded-[2rem] border border-stone-200 dark:border-stone-800 h-fit sticky top-32">
-                    <h3 className="font-bold text-xl mb-6 text-stone-900 dark:text-stone-100">{language === 'ko' ? '예약 요약' : 'Summary'}</h3>
-                    <div className="space-y-4 text-sm">
-                        <div className="flex justify-between border-b border-stone-200 dark:border-stone-800 pb-2">
-                            <span className="text-stone-500 dark:text-stone-400">{language === 'ko' ? '날짜' : 'Date'}</span>
-                            <span className="font-bold text-stone-900 dark:text-stone-100">{selectedDate?.toLocaleDateString() || '-'}</span>
+                <div className="hidden lg:block border border-black/10 dark:border-white/10 p-8 h-fit sticky top-32">
+                    <h3 className="text-editorial-h3 mb-12">{language === 'ko' ? 'SUMMARY' : 'SUMMARY'}</h3>
+                    <div className="space-y-6 text-editorial-body">
+                        <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-4">
+                            <span className="text-black/50 dark:text-white/50">{language === 'ko' ? 'DATE' : 'DATE'}</span>
+                            <span className="text-right">{selectedDate?.toLocaleDateString() || '-'}</span>
                         </div>
-                        <div className="flex justify-between border-b border-stone-200 dark:border-stone-800 pb-2">
-                            <span className="text-stone-500 dark:text-stone-400">{language === 'ko' ? '시간' : 'Time'}</span>
-                            <span className="font-bold text-stone-900 dark:text-stone-100">{selectedTimes.length > 0 ? selectedTimes.join(', ') : '-'}</span>
+                        <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-4">
+                            <span className="text-black/50 dark:text-white/50">{language === 'ko' ? 'TIME' : 'TIME'}</span>
+                            <span className="text-right">{selectedTimes.length > 0 ? selectedTimes.join(', ') : '-'}</span>
                         </div>
-                        <div className="flex justify-between border-b border-stone-200 dark:border-stone-800 pb-2">
-                            <span className="text-stone-500 dark:text-stone-400">{language === 'ko' ? '장소' : 'Location'}</span>
-                            <span className="font-bold text-right max-w-[150px] text-stone-900 dark:text-stone-100">{selectedLocations.length > 0 ? selectedLocations.join(', ') : '-'}</span>
+                        <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-4">
+                            <span className="text-black/50 dark:text-white/50">{language === 'ko' ? 'LOCATION' : 'LOCATION'}</span>
+                            <span className="text-right max-w-[150px]">{selectedLocations.length > 0 ? selectedLocations.join(', ') : '-'}</span>
                         </div>
-                        <div className="flex justify-between border-b border-stone-200 dark:border-stone-800 pb-2">
-                            <span className="text-stone-500 dark:text-stone-400">{language === 'ko' ? '상품' : 'Package'}</span>
-                            <span className="font-bold text-stone-900 dark:text-stone-100">{selectedProduct || '-'}</span>
+                        <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-4">
+                            <span className="text-black/50 dark:text-white/50">{language === 'ko' ? 'PACKAGE' : 'PACKAGE'}</span>
+                            <span className="text-right">{selectedProduct || '-'}</span>
                         </div>
-                        <div className="flex justify-between border-b border-stone-200 dark:border-stone-800 pb-2">
-                            <span className="text-stone-500 dark:text-stone-400">{language === 'ko' ? '좋아요' : 'Liked'}</span>
-                            <span className="font-bold text-stone-900 dark:text-stone-100">{likedPhotos.length} {language === 'ko' ? '장' : 'Photos'}</span>
+                        <div className="flex justify-between border-b border-black/10 dark:border-white/10 pb-4">
+                            <span className="text-black/50 dark:text-white/50">{language === 'ko' ? 'LIKED' : 'LIKED'}</span>
+                            <span className="text-right">{likedPhotos.length} {language === 'ko' ? 'PHOTOS' : 'PHOTOS'}</span>
                         </div>
                     </div>
                 </div>

@@ -8,7 +8,7 @@ const FloatingDock: React.FC<{ onOpenFAQ: () => void; onToggleMenu: () => void }
         <div className="w-full flex justify-center py-8 bg-white dark:bg-stone-950 border-t border-stone-100 dark:border-stone-900">
             <div className="flex items-center gap-4">
                 {/* Admin Button */}
-                <Link to="/admin" className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-900 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 transition-colors">
+                <Link to="/heum-admin-secure" className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-100 dark:bg-stone-900 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 transition-colors">
                     <Lock size={14} />
                 </Link>
 

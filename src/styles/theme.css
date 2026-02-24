@@ -3,10 +3,10 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-outfit: "Outfit", sans-serif;
+  --font-display: "Helvetica Neue", Helvetica, Arial, sans-serif;
   
   /* Custom Colors */
-  --color-brand-black: #000000;
+  --color-brand-black: #050505;
   --color-brand-white: #ffffff;
   --color-brand-stone-50: #fafaf9;
   --color-brand-stone-100: #f5f5f4;
@@ -24,21 +24,77 @@
 :root {
   --header-height: 80px;
   --footer-height: 300px;
-  --border-radius-lg: 2rem;
-  --border-radius-xl: 3rem;
+  --border-radius-lg: 0px; /* Marcus style uses sharp corners */
+  --border-radius-xl: 0px;
+  
+  /* Typography Scale - Marcus Style */
+  --text-huge: clamp(4rem, 15vw, 15rem);
+  --text-h1: clamp(3rem, 8vw, 8rem);
+  --text-h2: clamp(2rem, 5vw, 5rem);
+  --text-h3: clamp(1.5rem, 3vw, 3rem);
+  --text-body: clamp(0.75rem, 1vw, 0.875rem);
+  --text-micro: 10px;
 }
 
 body {
   font-family: var(--font-sans);
   background-color: var(--color-brand-white);
-  color: var(--color-brand-stone-900);
+  color: var(--color-brand-black);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Classes */
+.text-huge {
+  font-family: var(--font-display);
+  font-size: var(--text-huge);
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text-editorial-h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-h1);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text-editorial-h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.text-editorial-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.text-editorial-micro {
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
 /* Utility Classes for Glassmorphism */
 .glass-heavy {
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+}
+
+.dark .glass-heavy {
+  background: rgba(5, 5, 5, 0.8);
 }
 
 .hide-scrollbar::-webkit-scrollbar {

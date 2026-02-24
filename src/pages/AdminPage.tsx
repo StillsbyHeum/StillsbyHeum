@@ -9,7 +9,7 @@ import ScheduleTab from '../components/admin/ScheduleTab';
 import { Edit3, LogOut, ShieldCheck } from 'lucide-react';
 
 const AdminPage: React.FC = () => {
-    const { isAdmin, login, loginAsDev, logout, isEditMode, toggleEditMode, user } = useAppContext();
+    const { isAdmin, login, loginAsDev, logout, isEditMode, toggleEditMode, user, saveToLocalStorage } = useAppContext();
     const [activeTab, setActiveTab] = useState<'general' | 'packages' | 'notices' | 'portfolio' | 'reviews' | 'schedule'>('general');
     const [error, setError] = useState("");
     const navigate = useNavigate();
@@ -85,6 +85,12 @@ const AdminPage: React.FC = () => {
                 </div>
                 
                 <div className="flex gap-4">
+                    <button 
+                        onClick={saveToLocalStorage}
+                        className="px-6 py-2 bg-black text-white rounded-full font-bold text-sm hover:scale-105 transition-transform flex items-center gap-2"
+                    >
+                        Save Changes
+                    </button>
                     <button 
                         onClick={() => {
                             toggleEditMode();

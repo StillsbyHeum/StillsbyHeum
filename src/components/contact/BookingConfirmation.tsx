@@ -67,9 +67,9 @@ const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                         <div className="flex justify-between items-center text-xl font-black">
                             <span>{language === 'ko' ? '예약금 (10%)' : 'Deposit (10%)'}</span>
                             <span className="text-blue-600">
-                                {krwDeposit > 0 && `₩${krwDeposit.toLocaleString()}`}
-                                {krwDeposit > 0 && gbpDeposit > 0 && ' / '}
                                 {gbpDeposit > 0 && `£${gbpDeposit.toLocaleString()}`}
+                                {krwDeposit > 0 && gbpDeposit > 0 && ' / '}
+                                {krwDeposit > 0 && `₩${krwDeposit.toLocaleString()}`}
                             </span>
                         </div>
                         <p className="text-xs text-stone-400 mt-2 text-right font-medium">
